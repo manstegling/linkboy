@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <RollingFile name="file" fileName="log/linkboy.${date:yyyy-MM-dd}.log"
+                     filePattern="log/linkboy.%d{yyyy-MM-dd}.%i.log.gz" append="true">
+            <PatternLayout pattern="%d{ISO8601} [%t] - %p - %c{1} - %msg%n"/>
+            <OnStartupTriggeringPolicy/>
+        </RollingFile>
+        <Console name="console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{ISO8601} [%t] - %p - %c{1} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="console"/>
+            <AppenderRef ref="file"/>
+        </Root>
+    </Loggers>
+</Configuration>
