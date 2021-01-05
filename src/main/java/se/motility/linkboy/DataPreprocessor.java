@@ -11,8 +11,6 @@ import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -20,8 +18,8 @@ import java.util.zip.GZIPOutputStream;
 
 import it.unimi.dsi.fastutil.ints.Int2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import it.unimi.dsi.fastutil.ints.IntSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.motility.linkboy.util.MotUncaughtExceptionHandler;
@@ -35,6 +33,7 @@ public class DataPreprocessor {
 
     // Target is to calculate 200 million pair-wise distances (~20 000 movies)
 
+    private static final int MIN_COUNT = 20; // only consider movies with at least 20 ratings
     private static final String SEPARATOR = ",";
     private static final double AVG_DISSIMILARITY = 0.975d; // empirical value from data
     private static final double USER20_WEIGHT = computeWeight(20); // weight for a user with 20 ratings
@@ -43,7 +42,7 @@ public class DataPreprocessor {
     private static final Logger LOG = LoggerFactory.getLogger(DataPreprocessor.class);
 
     private final Int2ObjectOpenHashMap<UserContext> userContextMap = new Int2ObjectOpenHashMap<>();
-    private final Int2ObjectOpenHashMap<IntSet> movieToUserMap = new Int2ObjectOpenHashMap<>();
+    private final Int2ObjectOpenHashMap<IntOpenHashSet> movieToUserMap = new Int2ObjectOpenHashMap<>();
 
     private final double defaultDistanceTerm;
     private final double defaultWeight;
@@ -66,14 +65,11 @@ public class DataPreprocessor {
     }
 
     private void preprocess() {
-        Set<Integer> movieIndices = readMovies();
-        int[] idxArray = movieIndices
-                .stream()
-                .mapToInt(i -> i)
-                .sorted()
-                .toArray();
+        IntOpenHashSet movieIndices = readMovies();
+        int[] idxArray = movieIndices.toArray(new int[0]);
+        Arrays.sort(idxArray);
 
-        Map<Integer, Double> userWeights = readUserWeights();
+        Int2DoubleOpenHashMap userWeights = readUserWeights();
 
         readData(movieIndices);
 
@@ -85,7 +81,7 @@ public class DataPreprocessor {
              BufferedWriter buf = new BufferedWriter(w)) {
 
             // Write movie ID header
-            write(buf, Arrays.toString(idxArray));
+            write(buf, Arrays.toString(idxArray)); //FIXME get rid of '[' and ']'
 
             // Loop over all movie-pairs and write lower-triangular dissimilarity matrix
             for (int idx = 0; idx < idxArray.length; idx++) {
@@ -108,7 +104,9 @@ public class DataPreprocessor {
                     init = true;
                 }
                 write(buf, sb.toString());
-                LOG.info("Row #{} written successfully", idx);
+                if (idx % 100 == 0) {
+                    LOG.info("Row #{} written successfully", idx);
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("fail", e);
@@ -121,7 +119,7 @@ public class DataPreprocessor {
         buf.flush();
     }
 
-    private void readData(Set<Integer> movies) {
+    private void readData(IntOpenHashSet movies) {
 
         try (FileInputStream fis = new FileInputStream("../data/ratings.csv.gz");
              GZIPInputStream gis = new GZIPInputStream(fis);
@@ -157,21 +155,25 @@ public class DataPreprocessor {
 
     }
 
-    private static Set<Integer> readMovies() {
-        try (Stream<String> s = Files.lines(Paths.get("../data/movie-more-than-20.csv"))){
-            return s.map(Integer::parseInt)
-                    .collect(Collectors.toSet());
+    private static IntOpenHashSet readMovies() {
+        try (Stream<String> s = Files.lines(Paths.get("../data/movie-counts.csv"))){
+            return s.map(str -> str.split(","))
+                    .filter(d -> Integer.parseInt(d[0]) >= MIN_COUNT)
+                    .mapToInt(d -> Integer.parseInt(d[1]))
+                    .collect(IntOpenHashSet::new, IntOpenHashSet::add, IntOpenHashSet::addAll);
         } catch (Exception e) {
             throw new RuntimeException("fail!", e);
         }
     }
 
-    private static Map<Integer, Double> readUserWeights() {
+    private static Int2DoubleOpenHashMap readUserWeights() {
         try (Stream<String> s = Files.lines(Paths.get("../data/user-counts.csv"))){
             return s.map(str -> str.split(","))
                     .collect(Collectors.toMap(
                             p -> Integer.parseInt(p[1]),
-                            p -> computeWeight(Integer.parseInt(p[0]))));
+                            p -> computeWeight(Integer.parseInt(p[0])),
+                            (e1, e2) -> { throw new IllegalStateException("Same user appearing repeatedly: " + e1); },
+                            Int2DoubleOpenHashMap::new));
         } catch (Exception e) {
             throw new RuntimeException("fail!", e);
         }
@@ -199,13 +201,13 @@ public class DataPreprocessor {
         return Math.log(moviesRated) / moviesRated;
     }
 
-    private double computeDissimilarity(int movieIdx1, int movieIdx2, Map<Integer, Double> userWeights) {
+    private double computeDissimilarity(int movieIdx1, int movieIdx2, Int2DoubleOpenHashMap userWeights) {
 
-        Set<Integer> set1 = movieToUserMap.get(movieIdx1);
-        Set<Integer> set2 = movieToUserMap.get(movieIdx2);
+        IntOpenHashSet set1 = movieToUserMap.get(movieIdx1);
+        IntOpenHashSet set2 = movieToUserMap.get(movieIdx2);
 
-        Set<Integer> smaller;
-        Set<Integer> larger;
+        IntOpenHashSet smaller;
+        IntOpenHashSet larger;
 
         if (set1.size() <= set2.size()) {
             smaller = set1;
@@ -217,7 +219,10 @@ public class DataPreprocessor {
 
         double distanceTermSum = defaultDistanceTerm;
         double weightSum = defaultWeight;
-        for (int i : smaller) {
+        IntIterator iter = smaller.iterator();
+        int i;
+        while (iter.hasNext()) {
+            i = iter.nextInt();
             if (larger.contains(i)) {
                 UserContext userCtx = userContextMap.get(i);
                 double w = userWeights.get(i);
