@@ -80,12 +80,26 @@ compute_cluster_dissimilarity_matrix = function(Dsym, cutree_x) {
   return(M)
 }
 
-## Find the "best path" between two nodes in the graph described by the provided adjacency matrix
-## The best path is the shortest path that includes exactly the number of 'jumps' specified between start and goal.
+## Find the "best path" between two movies in the graph described by the provided adjacency matrix.
+## The best path is the shortest path that includes exactly the number of 'jumps' specified between movie1 and movie2.
 ## The best path also require the jumps to be somewhat limited in distance, yielding a more regular path.
-best_path <- function(D, lookup, start, goal, jumps) {
+best_path <- function(D, lookup, movie1, movie2, jumps) {
+  title1 = lookup$title[lookup$movieId == movie1]
+  title2 = lookup$title[lookup$movieId == movie2]
+  start = lookup$cluster[lookup$movieId == movie1]
+  goal = lookup$cluster[lookup$movieId == movie2]
+  message(paste("Searching for a path between ", title1, " (C", start ,") and ", title2, " (C", goal ,") with exactly ", jumps, " jumps", sep = ""))
   maxDist = (D[start, goal] / jumps) * 1.5
   result = best_path_internal(D, start, goal, jumps, maxDist)
+  while (is.infinite(result$distance) & jumps > 1) {
+    jumps = jumps - 1
+    maxDist = (D[start, goal] / jumps) * 1.5
+    result = best_path_internal(D, start, goal, jumps, maxDist)
+    if (!is.infinite(result$distance)) {
+      message(paste("Items too close (distance ", format(D[start, goal], digits = 2) ,"). A good path was found for ", jumps, 
+                    " jumps with a total path distance of ", format(result$distance, digits = 2), ".", sep = ""))
+    }
+  }
   result$recommended = lapply(result$path, function(clusterId) lookup$title[lookup$cluster == clusterId])
   return (result)
 }
@@ -165,7 +179,7 @@ plot(cumsum(mds$eig) / sum(mds$eig),
 abline(v=n, col="red")
 
 # Read movies
-movies1 = read.csv(file = moviesFilename, header = TRUE)
+movies1 = read.csv(file = moviesFilename, header = TRUE, stringsAsFactors = FALSE)
 
 # Create mapping between movie names and clusters
 m1 = data.frame(movieId=names(complete_cut), cluster=complete_cut, row.names=NULL, stringsAsFactors = FALSE)
@@ -181,7 +195,7 @@ fscaled = full1
 fscaled[,(1:n)+1] = sapply(fscaled[,(1:n)+1], normalize_percentiles)
 
 # Read ratings for user of interest
-userraw = read.csv(file = userFilename, header = TRUE)
+userraw = read.csv(file = userFilename, header = TRUE, stringsAsFactors = FALSE)
 
 # User data in global taste-space with movie names and scaled coordinates so that each dimension has the same importance
 userdata = merge(userraw, fscaled[,c(1:(n+2))], by.x = "movie_id", by.y = "movieId")
@@ -219,11 +233,11 @@ fuser = mds$points[,userSpace]
 Duser = dist(fuser)
 Duser = as.matrix(Duser)
 
-# Select start and goal cluster
-from = 1
-to = 7
+# Select start and goal movie ID
+movie1 = 101973 # Disconnect
+movie2 = 205076 # Downton Abbey
 
-linkpath = best_path(D = Duser, start = from, goal = to, jumps = 3)
+linkpath = best_path(D = Duser, lookup = mm1, movie1 = movie1, movie2 = movie2, jumps = 4)
 
 
 ## Inspect the best path
