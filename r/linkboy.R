@@ -42,13 +42,17 @@ read_dissimilarity_matrix = function(fname) {
   for (i in 1:batches) {
     b = readLines(incon, batchSz)
     for (l in b) {
-      D[idx,] =  as.numeric(strsplit(l[[1]], split = ",")[[1]])
+      s = strsplit(l[[1]], split = ",")[[1]]
+      s[s == "NaN"] = NA
+      D[idx,] =  as.numeric(s)
       idx = idx + 1
     }
   }
   b = readLines(incon, M - idx + 1)
   for (l in b) {
-    D[idx,] =  as.numeric(strsplit(l[[1]], split = ",")[[1]])
+    s = strsplit(l[[1]], split = ",")[[1]]
+    s[s == "NaN"] = NA
+    D[idx,] =  as.numeric(s)
     idx = idx + 1
   }
   

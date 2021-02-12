@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -35,8 +36,8 @@ public class DataPreprocessor {
 
     private static final int MIN_COUNT = 20; // only consider movies with at least 20 ratings
     private static final String SEPARATOR = ",";
-    private static final double AVG_DISSIMILARITY = 0.975d; // empirical value from data
-    private static final double USER20_WEIGHT = computeWeight(20); // weight for a user with 20 ratings
+    private static final double DEFAULT_BIAS = 0.975d;  // empirical value from data
+    private static final double DEFAULT_BIAS_W = computeWeight(200); // weight for a user with 200 ratings
     // We have ~12% missing pairs (19.9M out of 169.8M)
 
     private static final Logger LOG = LoggerFactory.getLogger(DataPreprocessor.class);
@@ -44,24 +45,41 @@ public class DataPreprocessor {
     private final Int2ObjectOpenHashMap<UserContext> userContextMap = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectOpenHashMap<IntOpenHashSet> movieToUserMap = new Int2ObjectOpenHashMap<>();
 
-    private final double defaultDistanceTerm;
-    private final double defaultWeight;
+    private final double biasTerm;
+    private final double biasWeight;
 
     public static void main(String[] args) {
-        //run preprocessor with no a priori information
-//        DataPreprocessor preprocessor = new DataPreprocessor(0d, 0d);
+        DataPreprocessor preprocessor = null;
+        if (args.length == 0) {
+            preprocessor = new DataPreprocessor(0d, 0d);
+        } else if (args.length == 1) {
+            if ("default".equalsIgnoreCase(args[0])) {
+                preprocessor = new DataPreprocessor(DEFAULT_BIAS, DEFAULT_BIAS_W);
+            }
+        } else if (args.length == 2) {
+            try {
+                int ratings = Integer.parseInt(args[0]);
+                double bias = Double.parseDouble(args[1]);
+                preprocessor = new DataPreprocessor(bias, computeWeight(ratings));
+            } catch (RuntimeException e) {
+                LOG.error("Incorrect argument format", e);
+            }
+        }
 
-        //run preprocessor and incorporate information about the target distribution
-        DataPreprocessor preprocessor = new DataPreprocessor(AVG_DISSIMILARITY, USER20_WEIGHT);
-
-
-        preprocessor.preprocess();
+        if (preprocessor != null) {
+            preprocessor.preprocess();
+        } else {
+            LOG.info("The program may take 0, 1 or 2 arguments" +
+                     "\n - <no arg>: Computes an unbiased dissimilarity matrix with missing values as 'NaN'" +
+                     "\n - Arg 'default', computes a matrix according to default (mean) bias" +
+                     "\n - Args '<ratings> <bias>', computes a biased matrix accordingly. E.g. '200 0.975'");
+        }
     }
 
 
-    DataPreprocessor(double defaultDistance, double defaultWeight) {
-        this.defaultDistanceTerm = defaultDistance * defaultWeight;
-        this.defaultWeight = defaultWeight;
+    DataPreprocessor(double bias, double biasWeight) {
+        this.biasTerm = bias * biasWeight;
+        this.biasWeight = biasWeight;
     }
 
     private void preprocess() {
@@ -81,7 +99,11 @@ public class DataPreprocessor {
              BufferedWriter buf = new BufferedWriter(w)) {
 
             // Write movie ID header
-            write(buf, Arrays.toString(idxArray)); //FIXME get rid of '[' and ']'
+            String header = Arrays
+                    .stream(idxArray)
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining(SEPARATOR));
+            write(buf, header);
 
             // Loop over all movie-pairs and write lower-triangular dissimilarity matrix
             for (int idx = 0; idx < idxArray.length; idx++) {
@@ -122,8 +144,8 @@ public class DataPreprocessor {
     private void readData(IntOpenHashSet movies) {
 
         try (FileInputStream fis = new FileInputStream("../data/ratings.csv.gz");
-             GZIPInputStream gis = new GZIPInputStream(fis);
-             InputStreamReader r = new InputStreamReader(gis);
+             GZIPInputStream gis = new GZIPInputStream(fis, 4096);
+             InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
              BufferedReader buf = new BufferedReader(r)) {
 
             int rows = 1;
@@ -201,7 +223,9 @@ public class DataPreprocessor {
         return Math.log(moviesRated) / moviesRated;
     }
 
-    private double computeDissimilarity(int movieIdx1, int movieIdx2, Int2DoubleOpenHashMap userWeights) {
+    // Returns float since we don't have much more accuracy anyway. This reduces disk size required for the
+    // dissimilarity matrix. Accuracy can be improved e.g. by implementing Kahan summation.
+    private float computeDissimilarity(int movieIdx1, int movieIdx2, Int2DoubleOpenHashMap userWeights) {
 
         IntOpenHashSet set1 = movieToUserMap.get(movieIdx1);
         IntOpenHashSet set2 = movieToUserMap.get(movieIdx2);
@@ -217,8 +241,9 @@ public class DataPreprocessor {
             larger = set1;
         }
 
-        double distanceTermSum = defaultDistanceTerm;
-        double weightSum = defaultWeight;
+        // Bias according to configuration
+        double distanceTermSum = biasTerm;
+        double weightSum = biasWeight;
         IntIterator iter = smaller.iterator();
         int i;
         while (iter.hasNext()) {
@@ -232,11 +257,11 @@ public class DataPreprocessor {
         }
 
         if (weightSum == 0d) {
-            return Double.NaN;  // no user has rated both movies
+            return Float.NaN;   // no user has rated both movies
         } else if (distanceTermSum == 0d) {
-            return 0d;          // all users have rated both movies with the exact same score
+            return 0f;          // all users have rated both movies with the exact same score
         } else {
-            return distanceTermSum / weightSum;  // aggregated distance score
+            return (float) (distanceTermSum / weightSum);  // aggregated distance score
         }
     }
 
