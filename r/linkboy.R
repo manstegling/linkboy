@@ -7,12 +7,12 @@
 setwd("F:/linkboy/data")
 
 # Program arguments
-k = 1000   # number of clusters used in regularization
+k = 3200   # number of clusters used in regularization (cutting below the 'missing value')
 n = 40     # number of dimensions in global taste-space
 d = 5      # number of dimensions in user subspace of taste-space
 
 # Input data
-matrixFilename="float-dissimilarity-matrix.csv.gz"
+matrixFilename="dissimilarity-matrix.csv.gz"
 moviesFilename="movies.csv"
 userFilename="user-ratings.csv"
 
@@ -34,8 +34,9 @@ read_dissimilarity_matrix = function(fname) {
   # identify number of entries and pre-allocate dissimilarity matrix
   M = length(hp[[1]])
   D = matrix(,nrow = M, ncol = M, dimnames = c(hp, hp))
-  batchSz = 2000
+  batchSz = 1000
   batches = M/batchSz
+  pb = txtProgressBar(min = 0, max = batches + 1, style = 3)
   
   # batched reading of matrix
   idx = 1
@@ -47,6 +48,7 @@ read_dissimilarity_matrix = function(fname) {
       D[idx,] =  as.numeric(s)
       idx = idx + 1
     }
+    setTxtProgressBar(pb, value = i)
   }
   b = readLines(incon, M - idx + 1)
   for (l in b) {
@@ -57,32 +59,35 @@ read_dissimilarity_matrix = function(fname) {
   }
   
   close(incon)
-  
-  # Set missing dissimilarities to global average and convert to 'dist' object (smaller footprint)
-  globalMean = mean(D[lower.tri(D)], na.rm=TRUE)
-  D[is.na(D)] = globalMean
+  setTxtProgressBar(pb, value = batches + 1)
+  if (sum(is.na(D)) > 0) {
+    globalMean = mean(D[lower.tri(D)], na.rm=TRUE)
+    message(paste("Setting missing dissimilarities to:", globalMean))
+    D[is.na(D)] = globalMean 
+  }
   D = as.dist(D)
+  close(pb)
   return(D)
 }
 
 ## Compute dissimilarity matrix for clusters defined by a cutree.
 ## The dissimilarity between two clusters is taken as the average of all pair-wise dissimilarities between the items of the two clusters. 
 compute_cluster_dissimilarity_matrix = function(Dsym, cutree_x) {
-  
-  clusterIds = data.frame(movieId = names(cutree_x), clusterId = unname(cutree_x), stringsAsFactors = FALSE)
-  k = length(unique(clusterIds$clusterId))
+  clusterIds = unname(cutree_x)
+  k = length(unique(clusterIds))
   M = matrix(,nrow=k, ncol=k)
+  pb = txtProgressBar(min = 0, max = k*k, initial = 1, style = 3) # time increases linearly for each iteration
   for (i in 2:k) {
-    a = clusterIds[clusterIds$clusterId == i, 1]
-    for (j in 1:(i-1)) {
-      b = clusterIds[clusterIds$clusterId == j, 1]
-      M[i,j] = mean(Dsym[a,b])
-    }
+    setTxtProgressBar(pb, value = i*i)
+    a = which(clusterIds == i)
+    M[i,1:(i-1)] = sapply(1:(i-1), function(j) mean(Dsym[a, which(clusterIds == j)]))
   }
   diag(M) = 0
   M = as.dist(M)
+  close(pb)
   return(M)
 }
+
 
 ## Find the "best path" between two movies in the graph described by the provided adjacency matrix.
 ## The best path is the shortest path that includes exactly the number of 'jumps' specified between movie1 and movie2.
@@ -155,7 +160,7 @@ complete_hc = hclust(D, method = "complete")
 complete_cut = cutree(complete_hc, k=k)
 
 # Inspect cutting height (validate the number of clusters is sensible)
-plot(sort(complete_hc$height, decreasing = TRUE), cex=0.4)
+plot(sort(complete_hc$height, decreasing = TRUE), cex=0.4, xlim = c(1,5000))
 abline(v=k, col="red")
 
 # Complete linkage gives a balanced and nice dendrogram!
@@ -163,11 +168,9 @@ abline(v=k, col="red")
 #abline(a = sort(complete_hc$height, decreasing = TRUE)[k], b = 0, col="red")
 
 # Create a symmetric version of the dissimilarity matrix (large memory footprint!)
-#- smaller footprint (removing D dist): uncomment below
-#-  Dsym = D
-#-  rm(D)
-#-  Dsym = as.matrix(Dsym)
-Dsym = as.matrix(D)
+Dsym = D
+rm(D)
+Dsym = as.matrix(Dsym)
 
 # Compute cluster-based dissimilarity which is much smaller (lower dimension) than item-based dissimilarities
 M = compute_cluster_dissimilarity_matrix(Dsym, complete_cut)
@@ -178,7 +181,7 @@ mds = cmdscale(M, k = n, eig = TRUE)
 # INSPECTION/DEBUG #
 # Plot R-squared vs number of dimensions
 plot(cumsum(mds$eig) / sum(mds$eig),
-     type="l", las=1, xlim = c(0,250),
+     type="l", las=1, xlim = c(0,250), ylim = c(0,1),
      xlab="Number of dimensions", ylab=expression(R^2))
 abline(v=n, col="red")
 
@@ -236,6 +239,7 @@ plot(v)
 fuser = mds$points[,userSpace]
 Duser = dist(fuser)
 Duser = as.matrix(Duser)
+
 
 # Select start and goal movie ID
 movie1 = 101973 # Disconnect
