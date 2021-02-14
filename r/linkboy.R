@@ -196,7 +196,7 @@ mm1 = merge(m1, movies1, by = "movieId")
 pp1 = as.data.frame(mds$points)
 pp1$cluster = 1:length(pp1$V1)
 
-# Create scaled global taste-space such that each dimension has the same importance
+# Create normalized global taste-space such that each dimension has the same importance
 full1 = merge(x = pp1, y = mm1, by = "cluster", all = TRUE)
 fscaled = full1
 fscaled[,(1:n)+1] = sapply(fscaled[,(1:n)+1], normalize_percentiles)
@@ -204,31 +204,18 @@ fscaled[,(1:n)+1] = sapply(fscaled[,(1:n)+1], normalize_percentiles)
 # Read ratings for user of interest
 userraw = read.csv(file = userFilename, header = TRUE, stringsAsFactors = FALSE)
 
-# User data in global taste-space with movie names and scaled coordinates so that each dimension has the same importance
+# User data in global taste-space with movie names and normalized coordinates
 userdata = merge(userraw, fscaled[,c(1:(n+2))], by.x = "movie_id", by.y = "movieId")
 
-# Put ratings in bins and find dimensions of interest
+# Calculate user's rating variance per dimension in the normalized taste-space
 v = numeric()
-ni = numeric()
-vi = numeric()
 for (i in 1:n) {
-  ni[1] = length(userdata[userdata$rating>0 & userdata$rating<=1, i+7])
-  ni[2] = length(userdata[userdata$rating>1 & userdata$rating<=2, i+7])
-  ni[3] = length(userdata[userdata$rating>2 & userdata$rating<=3, i+7])
-  ni[4] = length(userdata[userdata$rating>3 & userdata$rating<=4, i+7])
-  ni[5] = length(userdata[userdata$rating>4 & userdata$rating<=5, i+7])
-  
-  vi[1] = var(userdata[userdata$rating>0 & userdata$rating<=1, i+7])
-  vi[2] = var(userdata[userdata$rating>1 & userdata$rating<=2, i+7])
-  vi[3] = var(userdata[userdata$rating>2 & userdata$rating<=3, i+7])
-  vi[4] = var(userdata[userdata$rating>3 & userdata$rating<=4, i+7])
-  vi[5] = var(userdata[userdata$rating>4 & userdata$rating<=5, i+7])
-  
-  # remove bins with zero ratings
-  vi[ni == 0] = 0
-  
+  ni = by(userdata[,i+7], userdata$rating, length)
+  vi = by(userdata[,i+7], userdata$rating, var)
   v[i] = sum(vi*ni)
 }
+
+# The d dimensions with the lowest variances represent the user's consistent taste
 userSpace = sort(v, index.return=TRUE)$ix[1:d]
 
 # INSPECTION/DEBUG #
