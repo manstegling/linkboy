@@ -10,10 +10,18 @@
     <fileSets>
         <fileSet>
             <directory>${project.basedir}/scripts</directory>
-            <outputDirectory>/</outputDirectory>
         </fileSet>
         <fileSet>
             <directory>${project.basedir}/config</directory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/r</directory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/data</directory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/doc</directory>
         </fileSet>
     </fileSets>
     <files>

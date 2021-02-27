@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2021 Måns Tegling
+ *
+ * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+ */
 package se.motility.linkboy;
 
 import java.io.BufferedReader;
@@ -25,6 +30,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.motility.linkboy.util.MotUncaughtExceptionHandler;
 
+/**
+ * A standalone preprocessor responsible for turning the full dataset of user-movie-rating triplets
+ * into a movie-movie dissimilarity matrix. The matrix is written online to a file and is stored
+ * in lower-triangular format (since the movie-movie graph is undirected).
+ * <p>
+ * See {@link #computeWeight} for more info on the dissimilarity measure. This is all also described
+ * in the Linkboy documentation.
+ *
+ * @author M Tegling
+ */
 public class DataPreprocessor {
 
     static {
@@ -37,7 +52,7 @@ public class DataPreprocessor {
     private static final int MIN_COUNT = 20; // only consider movies with at least 20 ratings
     private static final String SEPARATOR = ",";
     private static final double DEFAULT_BIAS = 0.975d;  // empirical value from data
-    private static final double DEFAULT_BIAS_W = computeWeight(200); // weight for a user with 200 ratings
+    private static final double DEFAULT_BIAS_W = computeWeight(20); // weight for a user with 20 ratings
     // We have ~12% missing pairs (19.9M out of 169.8M)
 
     private static final Logger LOG = LoggerFactory.getLogger(DataPreprocessor.class);
@@ -224,7 +239,7 @@ public class DataPreprocessor {
     }
 
     // Returns float since we don't have much more accuracy anyway. This reduces disk size required for the
-    // dissimilarity matrix. Accuracy can be improved e.g. by implementing Kahan summation.
+    // dissimilarity matrix. Accuracy can be improved e.g. by using VectorMath#sum.
     private float computeDissimilarity(int movieIdx1, int movieIdx2, Int2DoubleOpenHashMap userWeights) {
 
         IntOpenHashSet set1 = movieToUserMap.get(movieIdx1);
