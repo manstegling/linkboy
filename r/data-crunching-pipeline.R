@@ -23,7 +23,8 @@ complete_hc = hclust(D, method = "complete")
 complete_cut = cutree(complete_hc, k=k)
 
 # Inspect cutting height (validate the number of clusters is sensible)
-plot(sort(complete_hc$height, decreasing = TRUE), cex=0.4, xlim = c(1,5000))
+plot(sort(complete_hc$height, decreasing = TRUE), cex=0.4, 
+     xlab="# clusters", ylab="Cutting height", main="Hierarchical Clustering")
 abline(v=k, col="red")
 
 # Complete linkage gives a balanced and nice dendrogram! (Plotting whole tree may crash session!)
@@ -45,7 +46,7 @@ mds = cmdscale(M, k = n, eig = TRUE)
 # Plot R-squared vs number of dimensions
 plot(cumsum(mds$eig) / sum(mds$eig),
      type="l", las=1, xlim = c(0,250), ylim = c(0,1),
-     xlab="Number of dimensions", ylab=expression(R^2))
+     xlab="Number of dimensions", ylab=expression(R^2), main="MDS: Variance Explained")
 abline(v=n, col="red")
 
 # Prepare IMDb ratings

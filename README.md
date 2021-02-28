@@ -63,6 +63,13 @@ To make _linkboy_ use your ratings, simply provide the file path with the `-u` o
 java -jar linkboy-1.0-SNAPSHOT.jar -m 116411 -u path/to/movielens-ratings.csv
 ```
 
+### Math included
+
+Did you know that _hierarchical clustering_ can be used as a regularization method? 
+If you're interested in the theory behind this project, please check out the 
+[Technical Documentation](doc/DOCUMENTATION.md) for details.
+
+
 ### Leave feedback
 
 Feel free to reach out if you have any questions or queries! For issues, please use
