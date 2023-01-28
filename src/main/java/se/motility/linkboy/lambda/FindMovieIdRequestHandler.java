@@ -19,10 +19,21 @@ public class FindMovieIdRequestHandler implements RequestHandler<Map<String, Str
         String term = request.get("term");
         LOG.info("Incoming request for term '{}'", term);
         List<String> result = SERVER_RESOURCE.server().searchMovie(term);
-        return result == null ? "Internal error" :
-                result.stream()
-                      .map(m -> m + "\n")
-                      .collect(Collectors.joining());
+        StringBuilder response = new StringBuilder();
+
+        response.append("{ ")
+                .append("\"movies\": ")
+                .append("[");
+        for (int i = 0; i < result.size(); i++) {
+            if (i > 0) {
+                response.append(", ");
+            }
+            response.append("\"")
+                    .append(result.get(i))
+                    .append("\"");
+        }
+        response.append("]}");
+        return response.toString();
     }
 
 }
