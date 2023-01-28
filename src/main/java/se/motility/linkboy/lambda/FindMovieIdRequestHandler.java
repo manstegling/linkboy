@@ -8,7 +8,6 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.motility.linkboy.ServerResource;
 
 public class FindMovieIdRequestHandler implements RequestHandler<Map<String, String>, String> {
 
