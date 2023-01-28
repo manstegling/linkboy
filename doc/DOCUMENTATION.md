@@ -1,5 +1,3 @@
-Everything provided as-is. Formal proofs omitted. YMMV... Let's go!
-
 ### Theory
 
 ###### Assumption 1
@@ -34,8 +32,7 @@ two separate movies, is similarly appreciated.
 
 ### Step-by-step
 
-I'm no expert when it comes to recommender systems. And there's a lot of data available.
-So why not try a model-free approach?
+Let's explore the hidden qualities of movies through a model-free approach.
 
 ##### 1. Compute global movie-movie distance matrix
 

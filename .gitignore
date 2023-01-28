@@ -7,3 +7,5 @@ target/
 .classpath
 log/
 indata/
+*.Rhistory
+*.iml

@@ -6,8 +6,6 @@
 package se.motility.linkboy;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.zip.GZIPInputStream;
 
 import com.opencsv.CSVReader;
 import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
@@ -24,6 +21,7 @@ import it.unimi.dsi.fastutil.ints.Int2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 
 /**
  * Class providing methods to read relevant app data
@@ -37,123 +35,91 @@ public class DataLoader {
     private static final String COMMA = ",";
     private static final Logger LOG = LoggerFactory.getLogger(DataLoader.class);
 
-
-    public static TasteSpace readTasteSpace(File file) {
-        if (file.exists() && file.isFile()) {
-            long start = System.currentTimeMillis();
-
-            int rows = countRows(file);
-            if (rows < 0) {
-                return null;
-            }
-
-            // Read data line-by-line and convert to primitive types
-            try (InputStream fis = new FileInputStream(file);
-                 InputStream gis = file.getName().endsWith(".gz") ? new GZIPInputStream(fis, 4096) : fis;
-                 InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
-                 BufferedReader buf = new BufferedReader(r)) {
-                // Find number of columns from header
-                String row = buf.readLine(); // header
-                int cols = row.split(COMMA).length - 1; // don't count 'clusterId' column
-
-                // Pre-allocate data structures for data
-                int[] clusterIds = new int[rows];
-                float[][] coordinates = new float[rows][cols];
-
-                // Loop over input data and populate data structures
-                String[] values;
-                int i = 0;
-                while ((row = buf.readLine()) != null) {
-                    row = WHITESPACE.matcher(row).replaceAll("");
-                    values = row.split(COMMA);
-                    float[] coordinate = coordinates[i];
-                    clusterIds[i] = Integer.parseInt(values[0]);
-                    for (int j = 1; j < values.length; j++) {
-                        coordinate[j-1] = Float.parseFloat(values[j]);
-                    }
-                    i++;
-                }
-                LOG.info("Read '{}' in {} ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
-                return new TasteSpace(clusterIds, coordinates);
-            } catch (Exception e) {
-                LOG.error("Exception encountered while reading '{}'. Message: {}",
-                        file.getAbsolutePath(), e.getMessage());
-            }
-        } else {
-            LOG.error("Could not find '{}'", file.getAbsolutePath());
+    public static TasteSpace readTasteSpace(IOExceptionThrowingSupplier<InputStream> streamSupplier) throws Exception {
+        int rows = countRows(streamSupplier);
+        if (rows < 0) {
+            return null;
         }
-        return null;
+
+        // Read data line-by-line and convert to primitive types
+        try (InputStream in = streamSupplier.get();
+             InputStreamReader r = new InputStreamReader(in, StandardCharsets.UTF_8);
+             BufferedReader buf = new BufferedReader(r)) {
+            // Find number of columns from header
+            String row = buf.readLine(); // header
+            int cols = row.split(COMMA).length - 1; // don't count 'clusterId' column
+
+            // Pre-allocate data structures for data
+            int[] clusterIds = new int[rows];
+            float[][] coordinates = new float[rows][cols];
+
+            // Loop over input data and populate data structures
+            String[] values;
+            int i = 0;
+            while ((row = buf.readLine()) != null) {
+                row = WHITESPACE.matcher(row).replaceAll("");
+                values = row.split(COMMA);
+                float[] coordinate = coordinates[i];
+                clusterIds[i] = Integer.parseInt(values[0]);
+                for (int j = 1; j < values.length; j++) {
+                    coordinate[j-1] = Float.parseFloat(values[j]);
+                }
+                i++;
+            }
+            return new TasteSpace(clusterIds, coordinates);
+        }
     }
 
-    public static MovieLookup readMovieMap(File file) {
-        if (file.exists() && file.isFile()) {
-            long start = System.currentTimeMillis();
-            try (InputStream fis = new FileInputStream(file);
-                 InputStream gis = file.getName().endsWith(".gz") ? new GZIPInputStream(fis, 4096) : fis;
-                 InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
-                 BufferedReader buf = new BufferedReader(r);
-                 CSVReader reader = new CSVReader(buf)) {
+    public static MovieLookup readMovieMap(IOExceptionThrowingSupplier<InputStream> streamSupplier) throws Exception {
+        try (InputStream in = streamSupplier.get();
+             InputStreamReader r = new InputStreamReader(in, StandardCharsets.UTF_8);
+             BufferedReader buf = new BufferedReader(r);
+             CSVReader reader = new CSVReader(buf)) {
 
-                reader.skip(1); // skip header
+            reader.skip(1); // skip header
 
-                List<Movie> movies = new ArrayList<>();
-                String[] row;
-                while ((row = reader.readNext()) != null) {
-                    movies.add(new Movie(
-                            Integer.parseInt(row[0]),
-                            Integer.parseInt(row[1]),
-                            row[2],
-                            row[3],
-                            NAN.equals(row[4]) ? Float.NaN : Float.parseFloat(row[4]),
-                            NAN.equals(row[5]) ? -1 : Integer.parseInt(row[5])));
+            List<Movie> movies = new ArrayList<>();
+            String[] row;
+            while ((row = reader.readNext()) != null) {
+                movies.add(new Movie(
+                        Integer.parseInt(row[0]),
+                        Integer.parseInt(row[1]),
+                        row[2],
+                        row[3],
+                        NAN.equals(row[4]) ? Float.NaN : Float.parseFloat(row[4]),
+                        NAN.equals(row[5]) ? -1 : Integer.parseInt(row[5])));
 
-                }
-                LOG.info("Read '{}' in {} ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
-                return new MovieLookup(movies);
-            } catch (Exception e) {
-                LOG.error("Exception encountered while reading '{}'. Message: {}",
-                        file.getAbsolutePath(), e.getMessage());
             }
-        } else {
-            LOG.error("Could not find '{}'", file.getAbsolutePath());
+            return new MovieLookup(movies);
         }
-        return null;
     }
 
     // Returns a Map containing a user's movieId-rating pairs
-    public static Int2DoubleOpenHashMap readUserRatings(File file) {
-        if (file.exists() && file.isFile()) {
-            long start = System.currentTimeMillis();
-            try (InputStream fis = new FileInputStream(file);
-                 InputStream gis = file.getName().endsWith(".gz") ? new GZIPInputStream(fis, 4096) : fis;
-                 InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
-                 BufferedReader buf = new BufferedReader(r);
-                 CSVReader reader = new CSVReader(buf)) {
+    public static Int2DoubleOpenHashMap readUserRatings(IOExceptionThrowingSupplier<InputStream> streamSupplier) throws Exception {
+        try (InputStream in = streamSupplier.get();
+             InputStreamReader r = new InputStreamReader(in, StandardCharsets.UTF_8);
+             BufferedReader buf = new BufferedReader(r);
+             CSVReader reader = new CSVReader(buf)) {
 
-                reader.skip(1); // skip header
+            reader.skip(1); // skip header
 
-                Int2DoubleOpenHashMap map = new Int2DoubleOpenHashMap();
-                String[] row;
-                while ((row = reader.readNext()) != null) {
-                    map.put(Integer.parseInt(row[0]), Float.parseFloat(row[3]));
-                }
-                LOG.info("Read '{}' in {} ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
-                return map;
-            } catch (Exception e) {
-                LOG.error("Exception encountered while reading '{}'. Message: {}",
-                        file.getAbsolutePath(), e.getMessage());
+            Int2DoubleOpenHashMap map = new Int2DoubleOpenHashMap();
+            String[] row;
+            while ((row = reader.readNext()) != null) {
+                map.put(Integer.parseInt(row[0]), Float.parseFloat(row[3]));
             }
-        } else {
-            LOG.error("Could not find '{}'", file.getAbsolutePath());
+            return map;
         }
-        return null;
     }
 
-    public static UserData readUserDataFull(File file, MovieLookup movieLookup, TasteSpace globalSpace) {
-        Int2DoubleOpenHashMap userRatings = readUserRatings(file);
-        if (userRatings == null) {
+    public static UserData readUserDataFull(IOExceptionThrowingSupplier<InputStream> streamSupplier, MovieLookup movieLookup, TasteSpace globalSpace) {
+        Int2DoubleOpenHashMap userRatings;
+        try {
+            userRatings = readUserRatings(streamSupplier);
+        } catch (Exception e) {
             return null;
         }
+
         int n = userRatings.size();
         int[] movieIds = new int[n];
         int[] clusterIds = new int[n];
@@ -191,18 +157,13 @@ public class DataLoader {
     }
 
     // Efficient counting of lines in file taken from https://stackoverflow.com/a/5342096
-    private static int countRows(File file) {
-        try (InputStream fis = new FileInputStream(file);
-             InputStream gis = file.getName().endsWith(".gz") ? new GZIPInputStream(fis, 4096) : fis;
-             InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
+    private static int countRows(IOExceptionThrowingSupplier<InputStream> streamSupplier) throws IOException {
+        try (InputStream in = streamSupplier.get();
+             InputStreamReader r = new InputStreamReader(in, StandardCharsets.UTF_8);
              BufferedReader buf = new BufferedReader(r);
              LineNumberReader count = new LineNumberReader(buf)) {
             while (count.skip(Long.MAX_VALUE) > 0) {/* Handles edge cases */}
             return count.getLineNumber() - 1; // don't count header
-        } catch (IOException e) {
-            LOG.error("Unable to count number of rows in '{}'. Message: {}",
-                    file.getAbsolutePath(), e.getMessage());
-            return -1;
         }
     }
 

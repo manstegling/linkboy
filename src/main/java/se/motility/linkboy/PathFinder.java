@@ -5,7 +5,7 @@
  */
 package se.motility.linkboy;
 
-import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -16,6 +16,7 @@ import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 
 /**
  *
@@ -25,49 +26,42 @@ import org.slf4j.LoggerFactory;
 public class PathFinder {
 
     private static final Logger LOG = LoggerFactory.getLogger(PathFinder.class);
-    private static final String DEFAULT_USER_FILE = "data/u86031.csv.gz";
 
     // Hyper-parameters TODO make configurable
     private final double threshold = 4.5d;
     private final int maxJumps = 5;
     private final int userDims = 7;
 
-    private final String movieMapPath;
-    private final String tasteSpacePath;
+    private final MovieLookup movieLookup;
+    private final TasteSpace tasteSpace;
+    private final UserData defaultUserData;
 
-    public PathFinder(String movieMapPath, String tasteSpacePath) {
-        this.movieMapPath = movieMapPath;
-        this.tasteSpacePath = tasteSpacePath;
+    public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData) {
+        this.movieLookup = movieLookup;
+        this.tasteSpace = tasteSpace;
+        this.defaultUserData = defaultUserData;
     }
 
-    public int find(int movieId1, int movieId2, File userFile) {
-        MovieLookup movieLookup = DataLoader.readMovieMap(new File(movieMapPath));
-        if (movieLookup == null) {
-            LOG.error("Could not read movie-map at {}", movieMapPath);
-            return 1;
-        }
-
+    public int find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         if (!movieLookup.contains(movieId2)) {
             LOG.error("Unknown target movie ID '{}'", movieId2);
             return 1;
         }
 
-        TasteSpace space = DataLoader.readTasteSpace(new File(tasteSpacePath));
-        if (space == null) {
-            LOG.error("Could not read taste-space at '{}'", tasteSpacePath);
-            return 1;
-        }
-
-        File file = userFile != null ? userFile : new File(DEFAULT_USER_FILE);
-        UserData userdata = DataLoader.readUserDataFull(file, movieLookup, space);
-        if (userdata == null) {
-            LOG.error("Could not read user ratings at '{}'", file.getAbsolutePath());
-            return 1;
+        //TODO precompute scaled taste-space for default user
+        UserData userData = defaultUserData;
+        if (userDataSupplier != null) {
+            LOG.info("Loading provided user data");
+            userData = DataLoader.readUserDataFull(userDataSupplier, movieLookup, tasteSpace);
+            if (userData == null) {
+                LOG.error("Could not read user ratings. Falling back to default profile");
+                userData = defaultUserData;
+            }
         }
 
         long start = System.currentTimeMillis(); // all app data has been read successfully
 
-        MoviePath path = find(movieId1, movieId2, space, movieLookup, userdata);
+        MoviePath path = find(movieId1, movieId2, tasteSpace, movieLookup, userData);
         if (path != null) {
             LOG.info("A good path was found between {} (C{}) and {} (C{}). Took {} ms.",
                     path.mov1.getTitle(), path.mov1.getClusterId(), path.mov2.getTitle(),

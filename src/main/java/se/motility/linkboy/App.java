@@ -5,7 +5,6 @@
  */
 package se.motility.linkboy;
 
-import java.io.File;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
@@ -35,10 +34,6 @@ public class App implements Callable<Integer> {
         Locale.setDefault(Locale.ENGLISH);
     }
 
-    public static final String MOVIEMAP_PATH = "data/moviemap.dat.gz";
-    public static final String TASTESPACE_PATH = "data/tastespace.dat.gz";
-
-    private static final int MAX_RESULTS = 10;
     private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
     @ArgGroup(exclusive = true, multiplicity = "1")
@@ -47,11 +42,25 @@ public class App implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        Server server = new Server();
         if (arguments.movieSearchArgs != null) {
-            return searchMovie(arguments.movieSearchArgs.searchString);
+            String term = arguments.movieSearchArgs.searchString;
+            List<String> result = server.searchMovie(term);
+            if (result != null) {
+                if (result.isEmpty()) {
+                    LOG.info("No movies containing '{}' found. Please try something else.", term);
+                } else {
+                    String output = result
+                            .stream()
+                            .map(m -> m + "\n")
+                            .collect(Collectors.joining());
+                    LOG.info("Movies found containing '{}':\n{}", term, output);
+                }
+                return 0;
+            }
+            return 1;
         } else if (arguments.pathFinderArgs != null) {
-            PathFinder finder = new PathFinder(MOVIEMAP_PATH, TASTESPACE_PATH);
-            return finder.find(
+            return server.find(
                     arguments.pathFinderArgs.startMovieId,
                     arguments.pathFinderArgs.targetMovieId,
                     arguments.pathFinderArgs.userFile);
@@ -60,31 +69,6 @@ public class App implements Callable<Integer> {
             return 1; // should never happen
         }
     }
-
-    private int searchMovie(String term) {
-        MovieLookup movieLookup = DataLoader.readMovieMap(new File(MOVIEMAP_PATH));
-        if (movieLookup == null) {
-            LOG.error("Could not read movie map at path {}", MOVIEMAP_PATH);
-            return 1;
-        }
-        long start = System.currentTimeMillis();
-        List<Movie> result = movieLookup.search(term);
-        LOG.info("Took {} ms", System.currentTimeMillis() - start);
-        if (result.isEmpty()) {
-            LOG.info("No movies containing '{}' found. Please try something else.", term);
-            return 0;
-        }
-        String output = result.stream()
-                              .limit(10)
-                              .map(m -> m.toString() + "\n")
-                              .collect(Collectors.joining());
-        if (result.size() > MAX_RESULTS) {
-            output += "[...] truncated";
-        }
-        LOG.info("Movies found containing '{}':\n{}", term, output);
-        return 0;
-    }
-
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new App()).execute(args);
@@ -112,7 +96,7 @@ public class App implements Callable<Integer> {
         @Option(names = {"-u", "--user-file"},
                 description = "[Optional] Provide your own ratings for personalized results. " +
                               "Otherwise, using the default profile.")
-        private File userFile;
+        private String userFile;
     }
 
     private static class MovieSearchArgs {
