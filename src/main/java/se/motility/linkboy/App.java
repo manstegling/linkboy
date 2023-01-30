@@ -60,10 +60,20 @@ public class App implements Callable<Integer> {
             }
             return 1;
         } else if (arguments.pathFinderArgs != null) {
-            return server.find(
+            long start = System.currentTimeMillis();
+            MoviePath path = server.find(
                     arguments.pathFinderArgs.startMovieId,
                     arguments.pathFinderArgs.targetMovieId,
                     arguments.pathFinderArgs.userFile);
+            if (path != null) {
+                LOG.info("A good path was found between {} (C{}) and {} (C{}). Took {} ms.",
+                        path.getMov1().getTitle(), path.getMov1().getClusterId(), path.getMov2().getTitle(),
+                        path.getMov2().getClusterId(), System.currentTimeMillis() - start);
+                LOG.info("Path details: {}", path);
+            } else {
+                LOG.warn("No path was found. Took {} ms", System.currentTimeMillis() - start);
+            }
+            return 0;
         } else {
             LOG.error("Incorrect arguments");
             return 1; // should never happen

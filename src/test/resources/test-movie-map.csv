@@ -1,0 +1,11 @@
+"movieId","cluster","title","genres","averageRating","numVotes"
+1,1,"Test Movie 1","Adventure|Animation|Children|Comedy|Fantasy",8.3,889638
+2,2,"Test Movie 2","Adventure|Children|Fantasy",7,309583
+3,3,"Test Movie 3","Comedy|Romance",6.7,24311
+4,4,"Test Movie 4","Comedy|Drama|Romance",6,9581
+5,5,"Test Movie 5","Comedy",6.1,34621
+6,6,"Test Movie 6","Action|Crime|Thriller",8.2,578928
+7,7,"Test Movie 7","Comedy|Romance",6.3,36892
+8,8,"Test Movie 8","Adventure|Children",5.5,9927
+9,9,"Test Movie 9","Action",5.8,32279
+10,9,"Test Movie 10","Action|Adventure|Thriller",7.2,239373

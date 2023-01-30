@@ -1,0 +1,8 @@
+movie_id,imdb_id,tmdb_id,rating,average_rating,title
+1,tt01101,t1,2.5,8.1,Test Movie 1
+2,tt01102,t2,0.5,8.1,Test Movie 2
+3,tt01103,t3,4.5,8.1,Test Movie 3
+4,tt01104,t4,2.5,8.1,Test Movie 4
+5,tt01105,t5,0.5,8.1,Test Movie 5
+6,tt01106,t6,4.5,8.1,Test Movie 6
+7,tt01107,t7,2.5,8.1,Test Movie 7

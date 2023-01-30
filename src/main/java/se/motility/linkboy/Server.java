@@ -16,6 +16,7 @@ public class Server {
     public static final String TASTESPACE_PATH = "tastespace.dat.gz";
     private static final String DEFAULT_USER_FILE = "u86031.csv.gz";
 
+    private static final int USER_DIMENSIONS = 7; //make this configurable?
     private static final int MAX_RESULTS = 10;
     private static final Logger LOG = LoggerFactory.getLogger(Server.class);
 
@@ -30,7 +31,7 @@ public class Server {
         initPathFinder();
     }
 
-    public int find(int startMovieId, int targetMovieId, String userFile) {
+    public MoviePath find(int startMovieId, int targetMovieId, String userFile) {
         initPathFinder();
         IOExceptionThrowingSupplier<InputStream> streamSupplier = userFile == null ? null : () -> open(userFile);
         return finder.find(startMovieId, targetMovieId, streamSupplier);
@@ -79,7 +80,7 @@ public class Server {
                 LOG.error("Could not read default user ratings at '{}'", DEFAULT_USER_FILE);
                 throw new IllegalStateException("Could not read default user ratings at " + DEFAULT_USER_FILE);
             }
-            finder = new PathFinder(movieLookup, tasteSpace, defaultUserData);
+            finder = new PathFinder(movieLookup, tasteSpace, defaultUserData, USER_DIMENSIONS);
         }
     }
 

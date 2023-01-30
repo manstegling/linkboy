@@ -30,22 +30,23 @@ public class PathFinder {
     // Hyper-parameters TODO make configurable
     private final double threshold = 4.5d;
     private final int maxJumps = 5;
-    private final int userDims = 7;
 
     private final MovieLookup movieLookup;
     private final TasteSpace tasteSpace;
     private final UserData defaultUserData;
+    private final int userDims;
 
-    public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData) {
+    public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData, int userDims) {
         this.movieLookup = movieLookup;
         this.tasteSpace = tasteSpace;
         this.defaultUserData = defaultUserData;
+        this.userDims = userDims;
     }
 
-    public int find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+    public MoviePath find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         if (!movieLookup.contains(movieId2)) {
             LOG.error("Unknown target movie ID '{}'", movieId2);
-            return 1;
+            return null;
         }
 
         //TODO precompute scaled taste-space for default user
@@ -58,24 +59,11 @@ public class PathFinder {
                 userData = defaultUserData;
             }
         }
-
-        long start = System.currentTimeMillis(); // all app data has been read successfully
-
-        MoviePath path = find(movieId1, movieId2, tasteSpace, movieLookup, userData);
-        if (path != null) {
-            LOG.info("A good path was found between {} (C{}) and {} (C{}). Took {} ms.",
-                    path.mov1.getTitle(), path.mov1.getClusterId(), path.mov2.getTitle(),
-                    path.mov2.getClusterId(), System.currentTimeMillis() - start);
-            LOG.info("Path details: {}", path);
-        } else {
-            LOG.warn("No path was found. Took {} ms", System.currentTimeMillis() - start);
-        }
-
-        return 0;
+        return find(movieId1, movieId2, tasteSpace, movieLookup, userData);
     }
 
     private MoviePath find(int movieId1, int movieId2, TasteSpace space, MovieLookup movieLookup, UserData userdata) {
-        DimensionStat[] stats = analyseDimensions(userdata);
+        DimensionStat[] stats = DimensionAnalyser.analyseInverseFunction(userdata);
         Arrays.sort(stats, Comparator.comparingDouble((DimensionStat stat) -> stat.explainedEntropy)
                                      .reversed());
 
@@ -237,38 +225,6 @@ public class PathFinder {
         return new ClusterPath(path0, distance);
     }
 
-    /**
-     * Calculates explained variance of the inverse ratings function. A dimensions with
-     * high explained variance has strong monotonicity and consistency.
-     * @param data user data
-     * @return an Array containing statistics about each dimension based on the user's data
-     */
-    private DimensionStat[] analyseDimensions(UserData data) {
-        int k = data.getDimensions();
-        UserData[] byRating = data.groupByRating();
-
-        TasteSpace fullSpace = data.getSpace();
-
-        float[] fullSse = VectorMath.byCol(fullSpace.getCoordinates(),
-                arr -> VectorMath.sumOfSquared(arr, VectorMath.mean(arr)));
-
-        float[] sse = new float[k];
-        float[] tmp;
-        for (UserData d : byRating) {
-            tmp = VectorMath.byCol(
-                    d.getSpace().getCoordinates(), arr -> VectorMath.sumOfSquared(arr, VectorMath.mean(arr)));
-            if (tmp.length > 0) {
-                VectorMath.addi(sse, tmp);
-            }
-        }
-
-        DimensionStat[] result = new DimensionStat[k];
-        for (int i = 0; i < k; i++) {
-            result[i] = new DimensionStat(i, sse[i], fullSse[i]);
-        }
-        return result;
-    }
-
     private static String formatPreference(int[] dims, float[] explained) {
         StringBuilder sb = new StringBuilder()
                 .append("{");
@@ -284,20 +240,6 @@ public class PathFinder {
         }
         return sb.append("}")
                  .toString();
-    }
-
-    private static class DimensionStat {
-        final int dimIndex;
-        final double modelEntropy;
-        final double baselineEntropy;
-        final double explainedEntropy;
-
-        public DimensionStat(int dimIndex, double modelEntropy, double baselineEntropy) {
-            this.dimIndex = dimIndex;
-            this.modelEntropy = modelEntropy;
-            this.baselineEntropy = baselineEntropy;
-            this.explainedEntropy = 1d - modelEntropy/baselineEntropy;
-        }
     }
 
     private static class ClusterPath {
@@ -319,44 +261,6 @@ public class PathFinder {
             this.movieId = movieId;
             this.rating = rating;
             this.distance = distance;
-        }
-    }
-
-    private static class MoviePath {
-        final Movie mov1;
-        final Movie mov2;
-        final List<List<Movie>> path;
-        final List<Integer> clusterIds;
-        final double distance;
-
-        public MoviePath(Movie mov1, Movie mov2, List<List<Movie>> path, List<Integer> clusterIds, double distance) {
-            this.mov1 = mov1;
-            this.mov2 = mov2;
-            this.path = path;
-            this.clusterIds = clusterIds;
-            this.distance = distance;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder()
-                    .append("Clusters: ")
-                    .append(clusterIds)
-                    .append(", Distance: ")
-                    .append(String.format("%.3f",  distance))
-                    .append("\n");
-            for (List<Movie> cluster : path) {
-                sb.append("[\n  ");
-                for (int i = 0; i < cluster.size(); i++) {
-                    if (i > 0) {
-                        sb.append("  ");
-                    }
-                    sb.append(cluster.get(i).getTitle())
-                      .append("\n");
-                }
-                sb.append("]\n");
-            }
-            return sb.toString();
         }
     }
 
