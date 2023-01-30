@@ -93,7 +93,7 @@ obvious what each dimension represents. But, comparing movies along the two most
 
 ##### 4. Selecting user subspace
 
-Our hypothesis is that _rating_ is some function $f: \Reals^{n} \to \Reals $ of the taste-space.
+Our hypothesis is that _rating_ is some function $f: \mathbb{R}^{n} \to \mathbb{R}$ of the taste-space.
 I.e. for some movie $i$ with a coordinate $m_i$ in the $n$-dimensional taste-space, the associated
 rating $r_i$ is given by some
 
