@@ -93,11 +93,12 @@ obvious what each dimension represents. But, comparing movies along the two most
 
 ##### 4. Selecting user subspace
 
-Our hypothesis is that _rating_ is some function of the taste-space. I.e. for some movie
-$i$ with a coordinate in the $n$-dimensional taste-space, the associated rating $r_i$ is
+Our hypothesis is that _rating_ is some function $f: \Reals^{n} \to \Reals $ of the taste-space.
+I.e. for some movie $i$ with a coordinate $m_i$ in the $n$-dimensional taste-space, the associated
+rating $r_i$ is given by some
 
 ```math
-r_i = f(m_{i,1}, m_{i,2}, ..., m_{i,n})
+r_i = f(m_i) = f(m_{i,1}, m_{i,2}, ..., m_{i,n})
 ```
 
 However, each user has their own preferences and the function $f$ is thus highly individual.
@@ -112,7 +113,7 @@ which the user's preference is likely to vary the most between movies.
 Currently, this is done by looking at the variance of $f^{-1}$. That is, we find the
 dimensions in which the spatial variance is comparably low for each rating. I.e. we group
 the movies the user has rated 5.0, the movies they have rated 4.5, and so on. We compute the
-squared deviation from mean for each group and compare the sum fot his, to the sum of squared
+squared deviation from mean for each group and compare the sum of this, to the sum of squared
 deviation of all rated movies (not by group). This approach favors dimensions in which the user
 has a monotonous preference (since $f$ is surjective). That is, the more a movie exhibits a
 preferred characteristic, the better.
