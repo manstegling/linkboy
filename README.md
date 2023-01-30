@@ -1,7 +1,5 @@
 ### Stagnation is death
 
-Taste is a dynamic and personal process. To like _X_, you'll need to understand _X_.
-
 Exploring is watching and learning the beauty of novelty. But where to?
 Fear not, you are not alone. By your side is _linkboy_ lighting the way.
 Gently encouraging you to expand your comfort-zone, one step at a time.
