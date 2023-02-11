@@ -1,8 +1,18 @@
+/*
+ * Copyright (c) 2021-2023 Måns Tegling
+ *
+ * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+ */
 package se.motility.linkboy;
+
+import se.motility.linkboy.model.TasteSpace;
+import se.motility.linkboy.model.UserData;
 
 /**
  * Utility class providing dimension analysing functionality correlating
  * individual taste dimensions with model explanatory power.
+ *
+ * @author M Tegling
  */
 public class DimensionAnalyser {
 
@@ -42,6 +52,10 @@ public class DimensionAnalyser {
             result[i] = new DimensionStat(i, sse[i], fullSse[i]);
         }
         return result;
+    }
+
+    private DimensionAnalyser() {
+        throw new UnsupportedOperationException("Do not instantiate utility class");
     }
 
 }

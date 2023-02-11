@@ -3,7 +3,7 @@
  *
  * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
  */
-package se.motility.linkboy;
+package se.motility.linkboy.model;
 
 import java.util.function.UnaryOperator;
 
@@ -11,6 +11,7 @@ import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.VectorMath;
 
 /**
  * @author M Tegling
@@ -22,9 +23,9 @@ public class TasteSpace {
     private final int[] indexToId;
     private final Int2IntMap idToIndex;
     private final float[][] coordinates;
-    private final float[][] distanceMatrix;
     private final int n;
 
+    private float[][] distanceMatrix;
     private boolean init = false;
 
     public TasteSpace(int[] clusterIds, float[][] coordinates) {
@@ -35,12 +36,12 @@ public class TasteSpace {
             this.idToIndex.put(clusterIds[i], i);
         }
         this.coordinates = coordinates;
-        this.distanceMatrix = new float[n][n];
     }
 
     public void computeDistances() {
         if (!init) {
             long start = System.currentTimeMillis();
+            distanceMatrix = new float[n][n];
             float[] coord1;
             float[] coord2;
             float norm;
@@ -56,7 +57,6 @@ public class TasteSpace {
             LOG.info("Distance matrix computed. Took {} ms", System.currentTimeMillis() - start);
         }
     }
-
 
     public float getDistance(int index1, int index2) {
         // cIdx is the array index, not the cluster ID

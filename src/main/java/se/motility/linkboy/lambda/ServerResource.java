@@ -9,10 +9,15 @@ import se.motility.linkboy.Server;
 
 public class ServerResource implements Resource {
 
-    private final Server server = new Server();
     private static final Logger LOG = LoggerFactory.getLogger(ServerResource.class);
+    private final Server server = new Server();
 
-    public ServerResource() {
+    private final boolean initSearch;
+    private final boolean initPathFinder;
+
+    public ServerResource(boolean initSearch, boolean initPathFinder) {
+        this.initSearch = initSearch;
+        this.initPathFinder = initPathFinder;
         Core.getGlobalContext().register(this);
     }
 
@@ -24,8 +29,14 @@ public class ServerResource implements Resource {
 
     @Override
     public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
-        LOG.info("Before checkpoint called");
-        server.initAll();
+        LOG.info("Before checkpoint called. Init Search: {}, Init PathFinder: {}",
+                initSearch ? "Y" : "N", initPathFinder ? "Y" : "N");
+        if (initSearch) {
+            server.initSearch();
+        }
+        if (initPathFinder) {
+            server.initPathFinder();
+        }
     }
 
     @Override

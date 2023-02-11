@@ -1,7 +1,9 @@
 package se.motility.linkboy;
 
-import org.junit.Before;
 import org.junit.Test;
+import se.motility.linkboy.model.MoviePath;
+import se.motility.linkboy.model.TasteSpace;
+import se.motility.linkboy.model.UserData;
 
 import static org.junit.Assert.*;
 import static se.motility.linkboy.TestUtil.*;

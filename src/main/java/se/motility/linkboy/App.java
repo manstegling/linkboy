@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Måns Tegling
+ * Copyright (c) 2021-2023 Måns Tegling
  *
  * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
  */
@@ -16,10 +16,12 @@ import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import se.motility.linkboy.model.MoviePath;
+import se.motility.linkboy.model.Prediction;
 import se.motility.linkboy.util.MotUncaughtExceptionHandler;
 
 /**
- * The entry-point to the Linkboy application. This class is responsible for parsing
+ * The entry-point to the app using the Linkboy CLI. This class is responsible for parsing
  * input arguments and running the desired parts of the program.
  *
  * @author M Tegling
@@ -74,6 +76,11 @@ public class App implements Callable<Integer> {
                 LOG.warn("No path was found. Took {} ms", System.currentTimeMillis() - start);
             }
             return 0;
+        } else if (arguments.willHeLoveItArgs != null) {
+            long start = System.currentTimeMillis();
+            Prediction prediction = server.predict(arguments.willHeLoveItArgs.movieId);
+            LOG.info("Result: {}. Took {} ms", prediction, System.currentTimeMillis() - start);
+            return 0;
         } else {
             LOG.error("Incorrect arguments");
             return 1; // should never happen
@@ -91,6 +98,17 @@ public class App implements Callable<Integer> {
 
         @ArgGroup(exclusive = false, multiplicity = "1", heading = "Movie Search Options%n")
         MovieSearchArgs movieSearchArgs;
+
+        @ArgGroup(exclusive = false, multiplicity = "1", heading = "Will He Love It Options%n")
+        WillHeLoveItArgs willHeLoveItArgs;
+    }
+
+    private static class WillHeLoveItArgs {
+
+        @Option(names = {"-q", "--q-movie-id"}, required = true, //TODO fix option
+                description = "Movie ID")
+        private int movieId;
+
     }
 
     private static class PathFinderArgs {

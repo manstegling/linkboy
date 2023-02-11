@@ -21,6 +21,9 @@ import it.unimi.dsi.fastutil.ints.Int2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.model.Movie;
+import se.motility.linkboy.model.TasteSpace;
+import se.motility.linkboy.model.UserData;
 import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 
 /**

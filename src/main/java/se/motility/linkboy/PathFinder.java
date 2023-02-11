@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Måns Tegling
+ * Copyright (c) 2021-2023 Måns Tegling
  *
  * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
  */
@@ -12,10 +12,17 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import it.unimi.dsi.fastutil.PriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
+import it.unimi.dsi.fastutil.objects.ObjectHeapPriorityQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.model.Movie;
+import se.motility.linkboy.model.MoviePath;
+import se.motility.linkboy.model.Prediction;
+import se.motility.linkboy.model.TasteSpace;
+import se.motility.linkboy.model.UserData;
 import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 
 /**
@@ -26,14 +33,18 @@ import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 public class PathFinder {
 
     private static final Logger LOG = LoggerFactory.getLogger(PathFinder.class);
+    private static final Comparator<Result> DISTANCE_COMPARATOR = Comparator.comparingDouble(Result::getDistance)
+                                                                            .reversed();
 
     // Hyper-parameters TODO make configurable
-    private final double threshold = 4.5d;
+    private final float threshold = 4.5f;
     private final int maxJumps = 5;
+    private final int nNearest = 10;
 
     private final MovieLookup movieLookup;
     private final TasteSpace tasteSpace;
     private final UserData defaultUserData;
+    private final TasteSpace scaledDefaultUserSpace;
     private final int userDims;
 
     public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData, int userDims) {
@@ -41,6 +52,16 @@ public class PathFinder {
         this.tasteSpace = tasteSpace;
         this.defaultUserData = defaultUserData;
         this.userDims = userDims;
+        this.scaledDefaultUserSpace = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims);
+    }
+
+    public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+        UserData userData = computeUserData(userDataSupplier);
+        TasteSpace scaledSpace = userDataSupplier != null
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
+                : scaledDefaultUserSpace;
+        // TODO: we need another version of this in which we find nearest _global movie not in user dataset_
+        return findNearestSuitable(movieId, threshold, scaledSpace, movieLookup, userData);
     }
 
     public MoviePath find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
@@ -48,44 +69,73 @@ public class PathFinder {
             LOG.error("Unknown target movie ID '{}'", movieId2);
             return null;
         }
-
-        //TODO precompute scaled taste-space for default user
-        UserData userData = defaultUserData;
-        if (userDataSupplier != null) {
-            LOG.info("Loading provided user data");
-            userData = DataLoader.readUserDataFull(userDataSupplier, movieLookup, tasteSpace);
-            if (userData == null) {
-                LOG.error("Could not read user ratings. Falling back to default profile");
-                userData = defaultUserData;
-            }
-        }
-        return find(movieId1, movieId2, tasteSpace, movieLookup, userData);
+        UserData userData = computeUserData(userDataSupplier);
+        TasteSpace scaledSpace = userDataSupplier != null
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
+                : scaledDefaultUserSpace;
+        return find(movieId1, movieId2, movieLookup, userData, scaledSpace);
     }
 
-    private MoviePath find(int movieId1, int movieId2, TasteSpace space, MovieLookup movieLookup, UserData userdata) {
-        DimensionStat[] stats = DimensionAnalyser.analyseInverseFunction(userdata);
-        Arrays.sort(stats, Comparator.comparingDouble((DimensionStat stat) -> stat.explainedEntropy)
-                                     .reversed());
+    public Prediction predict(int movieId) {
+        Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultUserSpace, nNearest);
+        Prediction.Component[] components = prepareComponents(nearest);
+        float predictedRating = computedWeightedAvg(components);
+        return new Prediction(movieLookup.getMovie(movieId), predictedRating, components);
+    }
 
-        int[] dims = new int[userDims];
-        float[] explained = new float[userDims];
-        for (int i = 0; i < userDims; i++) {
-            dims[i] = stats[i].dimIndex;
-            explained[i] = (float) stats[i].explainedEntropy;
+    private Prediction.Component[] prepareComponents(Result[] results) {
+        double[] factors = new double[results.length];
+        float[] ratings = new float[results.length];
+        Result result;
+        double factor;
+        double factorSum = 0d;
+        for (int i = 0; i < results.length; i++) {
+            result = results[i];
+            factor = result.distance > 0.05d ? 1/ result.distance : 20d; // cap at factor 20
+            factors[i] = factor;
+            factorSum += factor;
+            ratings[i] = result.rating;
         }
-        LOG.info("User preference: {}", formatPreference(dims, explained));
 
-        TasteSpace subspace = space.createSubspace(dims); // only focus on the dimensions relevant to the user
-        TasteSpace localSpace = userdata.getSpace().createSubspace(dims);
+        if (factorSum == 0d) {
+            LOG.warn("Cannot computed weighted avg for {}", Arrays.toString(results));
+            throw new IllegalArgumentException("Cannot compute weighted avg for " + Arrays.toString(results));
+        }
 
-        float[][] userCoordsRaw = subspace.getCoordinates();
-        float[][] normalizedCols = new float[userDims][subspace.getNumClusters()];
-        float[][] localColSpace = VectorMath.transpose(localSpace.getCoordinates());
-        VectorMath.byIndexedCol(userCoordsRaw, normalizedCols, (i,x) -> normalize(x, localColSpace[i], explained[i]));
+        double proportion;
+        Prediction.Component[] components = new Prediction.Component[results.length];
+        for (int i = 0; i < results.length; i++) {
+            result = results[i];
+            proportion = factors[i] / factorSum;
+            components[i] = new Prediction.Component(result.movieId, movieLookup.getMovie(result.movieId).getTitle(),
+                    ratings[i], result.distance, proportion);
+        }
+        return components;
+    }
 
-        TasteSpace scaledSpace = new TasteSpace(subspace.getClusterIds(), VectorMath.transpose(normalizedCols));
-        scaledSpace.computeDistances();
+    private float computedWeightedAvg(Prediction.Component[] components) {
+        float weightedAvg = 0f;
+        for (Prediction.Component s : components) {
+            weightedAvg += s.getProportion() * s.getRating();
+        }
+        return weightedAvg;
+    }
 
+    private UserData computeUserData(IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+        if (userDataSupplier != null) {
+            LOG.info("Loading provided user data");
+            UserData userData = DataLoader.readUserDataFull(userDataSupplier, movieLookup, tasteSpace);
+            if (userData == null) {
+                LOG.error("Could not read user ratings. Falling back to default profile");
+                return defaultUserData;
+            } else {
+                return userData;
+            }
+        }
+        return defaultUserData;
+    }
+
+    private MoviePath find(int movieId1, int movieId2, MovieLookup movieLookup, UserData userdata, TasteSpace scaledSpace) {
         Movie movie1 = movieId1 != 0
                 ? movieLookup.getMovie(movieId1)
                 : findNearestSuitable(movieId2, threshold, scaledSpace, movieLookup, userdata);
@@ -116,7 +166,7 @@ public class PathFinder {
 
     // Finds the movie nearest 'targetMovieId' in user sub-space, with a rating of at least 'minRating'
     // If no movie has sufficiently high rating, the nearest highest rated movie is returned.
-    private Movie findNearestSuitable(int targetMovieId, double minRating,
+    private Movie findNearestSuitable(int targetMovieId, float minRating,
             TasteSpace space, MovieLookup movieLookup, UserData userdata) {
         int targetClusterId = movieLookup.getClusterId(targetMovieId);
         int[] movieIds = userdata.getMovieIds();
@@ -140,10 +190,10 @@ public class PathFinder {
     }
 
     // Finds the movie nearest 'targetMovieId' in user sub-space, with a rating of at least 'minRating'
-    private Result findNearestConstrained(int[] movieIds, int targetClusterId, double minRating,
+    private Result findNearestConstrained(int[] movieIds, int targetClusterId, float minRating,
             TasteSpace space, MovieLookup movieLookup, UserData userdata) {
         int movieId = -1;
-        double rating = minRating;
+        float rating = minRating;
         float distance = Float.POSITIVE_INFINITY;
         int cId;
         float r;
@@ -165,13 +215,38 @@ public class PathFinder {
         return movieId < 0 ? null : new Result(movieId, rating, distance);
     }
 
-    // Scale global set so that local subset has a variance of 'scale'
-    private float[] normalize(float[] xglobal, float[] xlocal, float scale) {
-        float v = VectorMath.var(xlocal);
-        float a = (float) Math.sqrt(scale / v);
-        return VectorMath.axpb(xglobal, a,0f);
-    }
 
+    private Result[] findNearestRated(int movieId, UserData userdata, TasteSpace scaledSpace, int nNearest) {
+        PriorityQueue<Result> queue = new ObjectHeapPriorityQueue<>(
+                nNearest, DISTANCE_COMPARATOR);
+
+        int clusterId = movieLookup.getClusterId(movieId);
+        int[] movieIds = userdata.getMovieIds();
+
+        int cId;
+        float r;
+        float d;
+        int mId;
+        for (int i = 0; i < movieIds.length; i++) {
+            mId = movieIds[i];
+            cId = movieLookup.getClusterId(mId);
+            d = scaledSpace.getDistanceById(clusterId, cId);
+            r = userdata.getRating(mId);
+            if (i < nNearest) {
+                queue.enqueue(new Result(mId, r, d));
+            } else if (d < queue.first().distance) {
+                queue.dequeue();
+                queue.enqueue(new Result(mId,r , d));
+            }
+        }
+
+        int n = queue.size();
+        Result[] results = new Result[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = queue.dequeue();
+        }
+        return results;
+    }
 
     private ClusterPath findPath(int movie1, int movie2, int maxJumps, TasteSpace space, MovieLookup movieLookup) {
         int cIdx1 = space.getClusterIndex(movieLookup.getClusterId(movie1));
@@ -225,23 +300,6 @@ public class PathFinder {
         return new ClusterPath(path0, distance);
     }
 
-    private static String formatPreference(int[] dims, float[] explained) {
-        StringBuilder sb = new StringBuilder()
-                .append("{");
-        for (int i = 0; i < dims.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("D")
-              .append(dims[i])
-              .append(": ")
-              .append(String.format("%.1f", explained[i]*100))
-              .append("%");
-        }
-        return sb.append("}")
-                 .toString();
-    }
-
     private static class ClusterPath {
         final IntList clusterIndexes;
         final double distance;
@@ -254,13 +312,27 @@ public class PathFinder {
 
     private static class Result {
         final int movieId;
-        final double rating;
+        final float rating;
         final double distance;
 
-        public Result(int movieId, double rating, double distance) {
+        public Result(int movieId, float rating, double distance) {
             this.movieId = movieId;
             this.rating = rating;
             this.distance = distance;
+        }
+
+        public double getDistance() {
+            return distance;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("Result{");
+            sb.append("movieId=").append(movieId);
+            sb.append(", rating=").append(rating);
+            sb.append(", distance=").append(distance);
+            sb.append('}');
+            return sb.toString();
         }
     }
 

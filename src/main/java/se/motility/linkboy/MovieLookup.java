@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
+import se.motility.linkboy.model.Movie;
 
 /**
  * A database containing metadata about all movies in the system.

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2021-2023 Måns Tegling
+ *
+ * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+ */
 package se.motility.linkboy;
 
 import java.io.IOException;
@@ -8,13 +13,21 @@ import java.util.zip.GZIPInputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.model.Movie;
+import se.motility.linkboy.model.MoviePath;
+import se.motility.linkboy.model.Prediction;
+import se.motility.linkboy.model.TasteSpace;
+import se.motility.linkboy.model.UserData;
 import se.motility.linkboy.util.IOExceptionThrowingSupplier;
 
+/**
+ * @author M Tegling
+ */
 public class Server {
 
     public static final String MOVIEMAP_PATH = "moviemap.dat.gz";
     public static final String TASTESPACE_PATH = "tastespace.dat.gz";
-    private static final String DEFAULT_USER_FILE = "u86031.csv.gz";
+    private static final String DEFAULT_USER_FILE = "uXXX.csv.gz"; //or u86031.csv.gz
 
     private static final int USER_DIMENSIONS = 7; //make this configurable?
     private static final int MAX_RESULTS = 10;
@@ -23,18 +36,15 @@ public class Server {
     private MovieLookup movieLookup;
     private PathFinder finder;
 
-    /**
-     * Preloads and initializes all functionality. Used e.g. for SnapStart.
-     */
-    public void initAll() {
-        initSearch();
-        initPathFinder();
-    }
-
     public MoviePath find(int startMovieId, int targetMovieId, String userFile) {
         initPathFinder();
         IOExceptionThrowingSupplier<InputStream> streamSupplier = userFile == null ? null : () -> open(userFile);
         return finder.find(startMovieId, targetMovieId, streamSupplier);
+    }
+
+    public MoviePath find(int startMovieId, int targetMovieId, IOExceptionThrowingSupplier<InputStream> userFileSupplier) {
+        initPathFinder();
+        return finder.find(startMovieId, targetMovieId, userFileSupplier);
     }
 
     public List<String> searchMovie(String term) {
@@ -56,7 +66,15 @@ public class Server {
         return output;
     }
 
-    private void initSearch() {
+    public Prediction predict(int movieId) {
+        initPathFinder();
+        return finder.predict(movieId);
+    }
+
+    /**
+     * Initializes and preloads resources needed for performing searches. Can be used with e.g. Snapstart.
+     */
+    public void initSearch() {
         if (movieLookup == null) {
             movieLookup = read(MOVIEMAP_PATH, DataLoader::readMovieMap);
             if (movieLookup == null) {
@@ -66,7 +84,10 @@ public class Server {
         }
     }
 
-    private void initPathFinder() {
+    /**
+     * Initializes and preloads resources needed for finding paths. Can be used with e.g. Snapstart.
+     */
+    public void initPathFinder() {
         if (finder == null) {
             initSearch();
             TasteSpace tasteSpace = read(TASTESPACE_PATH, DataLoader::readTasteSpace);

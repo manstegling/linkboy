@@ -7,28 +7,31 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.motility.linkboy.Movie;
-import se.motility.linkboy.MoviePath;
+import se.motility.linkboy.model.Movie;
+import se.motility.linkboy.model.MoviePath;
+import se.motility.linkboy.util.Util;
 
 public class FindPathRequestHandler implements RequestHandler<Map<String, String>, String> {
 
     private static final Logger LOG = LoggerFactory.getLogger(FindPathRequestHandler.class);
-    private static final ServerResource SERVER_RESOURCE = new ServerResource();
 
     private static final String START_ID = "startId";
     private static final String TARGET_ID = "targetId";
+
+    // Initialize last
+    private static final ServerResource SERVER_RESOURCE = new ServerResource(true, true);
 
     @Override
     public String handleRequest(Map<String, String> request, Context context) {
 
         String startId = request.get(START_ID);
-        int startMovieId = parseInt(startId, START_ID);
+        int startMovieId = Util.parseMovieId(startId, START_ID);
 
         String targetId = request.get(TARGET_ID);
-        int targetMovieId = parseInt(targetId, TARGET_ID);
+        int targetMovieId = Util.parseMovieId(targetId, TARGET_ID);
 
         LOG.info("Trying to find path between {} and {}", startMovieId, targetMovieId);
-        MoviePath result = SERVER_RESOURCE.server().find(startMovieId, targetMovieId, null);
+        MoviePath result = SERVER_RESOURCE.server().find(startMovieId, targetMovieId, (String) null);
         if (result == null) {
             return "{\"message\": \"Could not find a path. Please check your input or try a different movie.\"}";
         }
@@ -65,19 +68,6 @@ public class FindPathRequestHandler implements RequestHandler<Map<String, String
         }
         response.append("]]}");
         return response.toString();
-    }
-
-    private static int parseInt(String str, String fieldName) {
-        try {
-            int i = Integer.parseInt(str.trim());
-            if (i < 0) {
-                throw new IllegalArgumentException("negative value not allowed");
-            }
-            return i;
-        } catch (Exception e) {
-            LOG.error("Invalid input {} for field {}", str, fieldName);
-            throw new IllegalArgumentException("startId must be a non-negative integer but was " + fieldName);
-        }
     }
 
 }

@@ -11,7 +11,9 @@ import org.slf4j.LoggerFactory;
 public class FindMovieIdRequestHandler implements RequestHandler<Map<String, String>, String> {
 
     private static final Logger LOG = LoggerFactory.getLogger(FindMovieIdRequestHandler.class);
-    private static final ServerResource SERVER_RESOURCE = new ServerResource();
+
+    // Initialize last
+    private static final ServerResource SERVER_RESOURCE = new ServerResource(true, false);
 
     @Override
     public String handleRequest(Map<String, String> request, Context context) {

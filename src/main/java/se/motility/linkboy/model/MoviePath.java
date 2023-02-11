@@ -1,7 +1,15 @@
-package se.motility.linkboy;
+/*
+ * Copyright (c) 2021-2023 Måns Tegling
+ *
+ * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+ */
+package se.motility.linkboy.model;
 
 import java.util.List;
 
+/**
+ * @author M Tegling
+ */
 public class MoviePath {
 
     private final Movie mov1;

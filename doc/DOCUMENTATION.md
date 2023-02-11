@@ -101,7 +101,7 @@ rating $r_i$ is given by some
 r_i = f(m_i) = f(m_{i,1}, m_{i,2}, ..., m_{i,n})
 ```
 
-However, each user has their own preferences and the function $f$ is thus highly individual.
+However, each user has their own preferences, and the function $f$ is thus highly individual.
 A user may not care whether a movie is cheery or dark, as long as it has a special type
 of aesthetics. If aesthetics is sufficiently important also to other users, it is most likely
 represented as a global taste dimension.
