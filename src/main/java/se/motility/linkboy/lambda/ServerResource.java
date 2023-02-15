@@ -1,5 +1,7 @@
 package se.motility.linkboy.lambda;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.crac.Context;
 import org.crac.Core;
 import org.crac.Resource;
@@ -10,6 +12,8 @@ import se.motility.linkboy.Server;
 public class ServerResource implements Resource {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServerResource.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final Server server = new Server();
 
     private final boolean initSearch;
@@ -23,6 +27,14 @@ public class ServerResource implements Resource {
 
     public Server server() {
         return server;
+    }
+
+    public <T> String serializeResponse(T response) {
+        try {
+            return MAPPER.writeValueAsString(response);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Could not format the response");
+        }
     }
 
     /* AWS Lambda SnapStart functionality used to preload data into memory */

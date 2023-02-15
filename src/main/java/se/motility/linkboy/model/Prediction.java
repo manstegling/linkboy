@@ -22,6 +22,10 @@ public class Prediction {
         return predictedRating;
     }
 
+    public Component[] getComponents() {
+        return components;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("Prediction{");
@@ -33,22 +37,34 @@ public class Prediction {
     }
 
     public static class Component {
-        private final int mId;
-        private final String name;
-        private final float rating;
+        private final int movieId;
+        private final String title;
+        private final float userRating;
         private final double distance;
         private final double proportion;
 
-        public Component(int mId, String name, float rating, double distance, double proportion) {
-            this.mId = mId;
-            this.name = name;
-            this.rating = rating;
+        public Component(int movieId, String title, float userRating, double distance, double proportion) {
+            this.movieId = movieId;
+            this.title = title;
+            this.userRating = userRating;
             this.distance = distance;
             this.proportion = proportion;
         }
 
-        public float getRating() {
-            return rating;
+        public int getMovieId() {
+            return movieId;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public float getUserRating() {
+            return userRating;
+        }
+
+        public double getDistance() {
+            return distance;
         }
 
         public double getProportion() {
@@ -58,9 +74,9 @@ public class Prediction {
         @Override
         public String toString() {
             final StringBuilder sb = new StringBuilder("Stat{");
-            sb.append("mId=").append(mId);
-            sb.append(", name='").append(name).append('\'');
-            sb.append(", rating=").append(rating);
+            sb.append("mId=").append(movieId);
+            sb.append(", name='").append(title).append('\'');
+            sb.append(", rating=").append(userRating);
             sb.append(", distance=").append(distance);
             sb.append(", proportion=").append(proportion);
             sb.append('}');

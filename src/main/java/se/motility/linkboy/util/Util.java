@@ -16,7 +16,7 @@ public class Util {
             return i;
         } catch (Exception e) {
             LOG.error("Invalid input {} for field {}", str, fieldName);
-            throw new IllegalArgumentException("startId must be a non-negative integer but was " + fieldName);
+            throw new IllegalArgumentException(fieldName + " must be a non-negative integer but was " + str);
         }
     }
 

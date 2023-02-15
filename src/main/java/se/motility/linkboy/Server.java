@@ -110,11 +110,11 @@ public class Server {
             long start = System.currentTimeMillis();
             IOExceptionThrowingSupplier<InputStream> supp = () -> open(path);
             T t = fn.apply(supp);
-            LOG.info("Read '{}' in {} ms", MOVIEMAP_PATH, System.currentTimeMillis() - start);
+            LOG.info("Read '{}' in {} ms", path, System.currentTimeMillis() - start);
             return t;
         } catch (Exception e) {
             LOG.error("Exception encountered while reading '{}'. Message: {}",
-                    MOVIEMAP_PATH, e.getMessage());
+                    path, e.getMessage());
             return null;
         }
     }

@@ -9,3 +9,4 @@ log/
 indata/
 *.Rhistory
 *.iml
+src/test/resources/prediction-current.dat

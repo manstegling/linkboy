@@ -56,7 +56,7 @@ public class PathFinder {
     }
 
     public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
-        UserData userData = computeUserData(userDataSupplier);
+        UserData userData = loadUserData(userDataSupplier);
         TasteSpace scaledSpace = userDataSupplier != null
                 ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
                 : scaledDefaultUserSpace;
@@ -69,7 +69,7 @@ public class PathFinder {
             LOG.error("Unknown target movie ID '{}'", movieId2);
             return null;
         }
-        UserData userData = computeUserData(userDataSupplier);
+        UserData userData = loadUserData(userDataSupplier);
         TasteSpace scaledSpace = userDataSupplier != null
                 ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
                 : scaledDefaultUserSpace;
@@ -78,12 +78,12 @@ public class PathFinder {
 
     public Prediction predict(int movieId) {
         Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultUserSpace, nNearest);
-        Prediction.Component[] components = prepareComponents(nearest);
+        Prediction.Component[] components = preparePrediction(nearest);
         float predictedRating = computedWeightedAvg(components);
         return new Prediction(movieLookup.getMovie(movieId), predictedRating, components);
     }
 
-    private Prediction.Component[] prepareComponents(Result[] results) {
+    private Prediction.Component[] preparePrediction(Result[] results) {
         double[] factors = new double[results.length];
         float[] ratings = new float[results.length];
         Result result;
@@ -116,12 +116,12 @@ public class PathFinder {
     private float computedWeightedAvg(Prediction.Component[] components) {
         float weightedAvg = 0f;
         for (Prediction.Component s : components) {
-            weightedAvg += s.getProportion() * s.getRating();
+            weightedAvg += s.getProportion() * s.getUserRating();
         }
         return weightedAvg;
     }
 
-    private UserData computeUserData(IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+    private UserData loadUserData(IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         if (userDataSupplier != null) {
             LOG.info("Loading provided user data");
             UserData userData = DataLoader.readUserDataFull(userDataSupplier, movieLookup, tasteSpace);
