@@ -10,18 +10,16 @@ package se.motility.linkboy.model;
  */
 public class UserData {
 
-    private final int n;
     private final int[] movieIds;
     private final int[] clusterIds;
     private final float[] ratings;
     private final TasteSpace space;
 
     public UserData(int[] movieIds, int[] clusterIds, float[] ratings, float[][] coordinates) {
-        this.n = movieIds.length;
-        this.movieIds = movieIds;
-        //TODO validate all input has length n
-        this.clusterIds = clusterIds;
-        this.ratings = ratings;
+        int n = movieIds.length;
+        this.movieIds = validateLength(n, movieIds, "movieIds");
+        this.clusterIds = validateLength(n, clusterIds, "clusterIds");
+        this.ratings = validateLength(n, ratings, "ratings");
         this.space = new TasteSpace(clusterIds, coordinates);
     }
 
@@ -39,7 +37,7 @@ public class UserData {
     }
 
     public int getNumPoints() {
-        return n;
+        return movieIds.length;
     }
 
     public float getRating(int movieId) {
@@ -79,7 +77,7 @@ public class UserData {
             rats  = new float[k];
             coords  = new float[k][space.getDimensions()];
             k = 0;
-            for (int j = 0; j < n; j++) {
+            for (int j = 0; j < movieIds.length; j++) {
                 if (ratings[j] == r) {
                     mIds[k] = movieIds[j];
                     cIds[k] = clusterIds[j];
@@ -91,6 +89,22 @@ public class UserData {
             datasets[i-1] = new UserData(mIds, cIds, rats, coords);
         }
         return datasets;
+    }
+
+    private static int[] validateLength(int len, int[] array, String arrayName) {
+        if (array.length != len) {
+            throw new IllegalArgumentException(
+                    "Array " + arrayName + " was of length " + array.length + ". Expected " + len);
+        }
+        return array;
+    }
+
+    private static float[] validateLength(int len, float[] array, String arrayName) {
+        if (array.length != len) {
+            throw new IllegalArgumentException(
+                    "Array " + arrayName + " was of length " + array.length + ". Expected " + len);
+        }
+        return array;
     }
 
 }

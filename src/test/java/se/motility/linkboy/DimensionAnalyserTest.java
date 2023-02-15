@@ -1,6 +1,7 @@
 package se.motility.linkboy;
 
 import org.junit.Test;
+import se.motility.linkboy.model.DimensionStat;
 import se.motility.linkboy.model.TasteSpace;
 import se.motility.linkboy.model.UserData;
 

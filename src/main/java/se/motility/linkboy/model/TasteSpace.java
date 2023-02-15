@@ -98,15 +98,15 @@ public class TasteSpace {
         return idToIndex.get(id);
     }
 
-    public TasteSpace createSubspace(int[] dims) {
-        float[][] subspace = new float[n][dims.length];
+    public TasteSpace subspace(int[] dimensions) {
+        float[][] subspace = new float[n][dimensions.length];
         float[] fullRow;
         float[] subRow;
         for (int i = 0; i < n; i++) {
             fullRow = coordinates[i];
             subRow = subspace[i];
-            for (int j = 0; j < dims.length; j++) {
-                subRow[j] = fullRow[dims[j]];
+            for (int j = 0; j < dimensions.length; j++) {
+                subRow[j] = fullRow[dimensions[j]];
             }
         }
         return new TasteSpace(indexToId, subspace);

@@ -5,16 +5,39 @@
  */
 package se.motility.linkboy;
 
+import java.util.function.Function;
+
+import se.motility.linkboy.model.DimensionStat;
 import se.motility.linkboy.model.TasteSpace;
 import se.motility.linkboy.model.UserData;
 
 /**
- * Utility class providing dimension analysing functionality correlating
- * individual taste dimensions with model explanatory power.
+ * Analysers for identifying user preference in individual taste dimensions,
+ * along with model explanatory power.
  *
  * @author M Tegling
  */
 public class DimensionAnalyser {
+
+    /** The 'inverse function' analyser. Uses {@link DimensionAnalyser#analyseInverseFunction */
+    public static final DimensionAnalyser INVERSE_FUNCTION = new DimensionAnalyser(
+            DimensionAnalyser::analyseInverseFunction, "inverse function");
+
+    private final Function<UserData, DimensionStat[]> function;
+    private final String name;
+
+    private DimensionAnalyser(Function<UserData, DimensionStat[]> function, String name) {
+        this.function = function;
+        this.name = name;
+    }
+
+    public DimensionStat[] analyse(UserData data) {
+        return function.apply(data);
+    }
+
+    public String getName() {
+        return name;
+    }
 
     /**
      * Calculates explained variance of the inverse ratings function. A dimension with
@@ -52,10 +75,6 @@ public class DimensionAnalyser {
             result[i] = new DimensionStat(i, sse[i], fullSse[i]);
         }
         return result;
-    }
-
-    private DimensionAnalyser() {
-        throw new UnsupportedOperationException("Do not instantiate utility class");
     }
 
 }

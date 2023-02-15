@@ -52,13 +52,13 @@ public class PathFinder {
         this.tasteSpace = tasteSpace;
         this.defaultUserData = defaultUserData;
         this.userDims = userDims;
-        this.scaledDefaultUserSpace = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims);
+        this.scaledDefaultUserSpace = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims, DimensionAnalyser.INVERSE_FUNCTION);
     }
 
     public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         UserData userData = loadUserData(userDataSupplier);
         TasteSpace scaledSpace = userDataSupplier != null
-                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
                 : scaledDefaultUserSpace;
         // TODO: we need another version of this in which we find nearest _global movie not in user dataset_
         return findNearestSuitable(movieId, threshold, scaledSpace, movieLookup, userData);
@@ -71,7 +71,7 @@ public class PathFinder {
         }
         UserData userData = loadUserData(userDataSupplier);
         TasteSpace scaledSpace = userDataSupplier != null
-                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims)
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
                 : scaledDefaultUserSpace;
         return find(movieId1, movieId2, movieLookup, userData, scaledSpace);
     }

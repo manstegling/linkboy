@@ -10,6 +10,7 @@ import java.util.Comparator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.model.DimensionStat;
 import se.motility.linkboy.model.TasteSpace;
 import se.motility.linkboy.model.UserData;
 
@@ -23,8 +24,8 @@ public class TasteOperations {
             .comparingDouble(DimensionStat::getExplainedEntropy)
             .reversed();
 
-    public static TasteSpace scaleToUser(TasteSpace space, UserData userdata, int rank) {
-        DimensionStat[] stats = DimensionAnalyser.analyseInverseFunction(userdata);
+    public static TasteSpace scaleToUser(TasteSpace space, UserData userdata, int rank, DimensionAnalyser analyser) {
+        DimensionStat[] stats = analyser.analyse(userdata);
         Arrays.sort(stats, COMPARATOR);
 
         int[] dims = new int[rank];
@@ -33,10 +34,10 @@ public class TasteOperations {
             dims[i] = stats[i].getDimIndex();
             explained[i] = (float) stats[i].getExplainedEntropy();
         }
-        LOG.info("User preference: {}", formatPreference(dims, explained));
+        LOG.info("User preference from analyser '{}': {}", analyser.getName(), formatPreference(dims, explained));
 
-        TasteSpace subspace = space.createSubspace(dims); // only focus on the dimensions relevant to the user
-        TasteSpace localSpace = userdata.getSpace().createSubspace(dims);
+        TasteSpace subspace = space.subspace(dims); // only focus on the dimensions relevant to the user
+        TasteSpace localSpace = userdata.getSpace().subspace(dims);
 
         float[][] userCoordsRaw = subspace.getCoordinates();
         float[][] normalizedCols = new float[rank][subspace.getNumClusters()];
