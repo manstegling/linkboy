@@ -1,7 +1,15 @@
+/*
+ * Copyright (c) 2023 Måns Tegling
+ *
+ * Use of this source code is governed by the MIT license that can be found in the LICENSE file.
+ */
 package se.motility.linkboy.model;
 
 import java.util.Arrays;
 
+/**
+ * @author M Tegling
+ */
 public class Prediction {
 
     private final Movie movie;

@@ -18,6 +18,7 @@ import it.unimi.dsi.fastutil.ints.IntLists;
 import it.unimi.dsi.fastutil.objects.ObjectHeapPriorityQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.motility.linkboy.model.DistanceMatrix;
 import se.motility.linkboy.model.Movie;
 import se.motility.linkboy.model.MoviePath;
 import se.motility.linkboy.model.Prediction;
@@ -44,7 +45,7 @@ public class PathFinder {
     private final MovieLookup movieLookup;
     private final TasteSpace tasteSpace;
     private final UserData defaultUserData;
-    private final TasteSpace scaledDefaultUserSpace;
+    private final DistanceMatrix scaledDefaultDistances;
     private final int userDims;
 
     public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData, int userDims) {
@@ -52,17 +53,17 @@ public class PathFinder {
         this.tasteSpace = tasteSpace;
         this.defaultUserData = defaultUserData;
         this.userDims = userDims;
-        this.scaledDefaultUserSpace = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims, DimensionAnalyser.INVERSE_FUNCTION);
+        this.scaledDefaultDistances = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims, DimensionAnalyser.INVERSE_FUNCTION);
     }
 
-    public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
-        UserData userData = loadUserData(userDataSupplier);
-        TasteSpace scaledSpace = userDataSupplier != null
-                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
-                : scaledDefaultUserSpace;
-        // TODO: we need another version of this in which we find nearest _global movie not in user dataset_
-        return findNearestSuitable(movieId, threshold, scaledSpace, movieLookup, userData);
-    }
+//    public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+//        UserData userData = loadUserData(userDataSupplier);
+//        DistanceMatrix scaledDistances = userDataSupplier != null
+//                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
+//                : scaledDefaultDistances;
+//        // TODO: we need another version of this in which we find nearest _global movie not in user dataset_
+//        return null;
+//    }
 
     public MoviePath find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         if (!movieLookup.contains(movieId2)) {
@@ -70,14 +71,23 @@ public class PathFinder {
             return null;
         }
         UserData userData = loadUserData(userDataSupplier);
-        TasteSpace scaledSpace = userDataSupplier != null
+        DistanceMatrix scaledDistances = userDataSupplier != null
                 ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
-                : scaledDefaultUserSpace;
-        return find(movieId1, movieId2, movieLookup, userData, scaledSpace);
+                : scaledDefaultDistances;
+
+        if (movieId1 == 0) {
+            Result m1 = findNearestSuitable(movieId2, threshold, scaledDistances, movieLookup, userData);
+            Movie m = movieLookup.getMovie(m1.movieId);
+            LOG.info("Optimal starting point is {} (C{}), rating: {}, distance: {}", m.getTitle(),
+                    m.getClusterId(), String.format("%.1f", m1.rating), String.format("%.3f", m1.distance));
+            movieId1 = m1.movieId;
+        }
+
+        return findMoviePath(movieId1, movieId2, scaledDistances);
     }
 
     public Prediction predict(int movieId) {
-        Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultUserSpace, nNearest);
+        Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultDistances, nNearest);
         Prediction.Component[] components = preparePrediction(nearest);
         float predictedRating = computedWeightedAvg(components);
         return new Prediction(movieLookup.getMovie(movieId), predictedRating, components);
@@ -135,12 +145,12 @@ public class PathFinder {
         return defaultUserData;
     }
 
-    private MoviePath find(int movieId1, int movieId2, MovieLookup movieLookup, UserData userdata, TasteSpace scaledSpace) {
-        Movie movie1 = movieId1 != 0
-                ? movieLookup.getMovie(movieId1)
-                : findNearestSuitable(movieId2, threshold, scaledSpace, movieLookup, userdata);
+    private MoviePath findMoviePath(int movieId1, int movieId2, DistanceMatrix distances) {
+        Movie movie1 = movieLookup.getMovie(movieId1);
 
-        ClusterPath path = findPath(movie1.getId(), movieId2, maxJumps, scaledSpace, movieLookup);
+        int cIdx1 = distances.getClusterIndex(movieLookup.getClusterId(movieId1));
+        int cIdx2 = distances.getClusterIndex(movieLookup.getClusterId(movieId2));
+        ClusterPath path = findClusterPath(cIdx1, cIdx2, maxJumps, distances);
 
         if (path == null || Double.isInfinite(path.distance)) {
             Movie mov2 = movieLookup.getMovie(movieId2);
@@ -152,7 +162,7 @@ public class PathFinder {
         List<List<Movie>> clusters = new ArrayList<>();
         List<Integer> clusterIds = new ArrayList<>();
         for (int idx : path.clusterIndexes) {
-            int clusterId = scaledSpace.getClusterId(idx);
+            int clusterId = tasteSpace.getClusterId(idx);
             List<Movie> movies = movieLookup.getCluster(clusterId);
             clusters.add(movies.stream()
                                .limit(4)
@@ -166,32 +176,28 @@ public class PathFinder {
 
     // Finds the movie nearest 'targetMovieId' in user sub-space, with a rating of at least 'minRating'
     // If no movie has sufficiently high rating, the nearest highest rated movie is returned.
-    private Movie findNearestSuitable(int targetMovieId, float minRating,
-            TasteSpace space, MovieLookup movieLookup, UserData userdata) {
+    private Result findNearestSuitable(int targetMovieId, float minRating,
+            DistanceMatrix distances, MovieLookup movieLookup, UserData userdata) {
         int targetClusterId = movieLookup.getClusterId(targetMovieId);
         int[] movieIds = userdata.getMovieIds();
 
-        Result m1 = findNearestConstrained(movieIds, targetClusterId, minRating, space, movieLookup, userdata);
+        Result m1 = findNearestConstrained(movieIds, targetClusterId, minRating, distances, movieLookup, userdata);
         if (m1 == null) {
             // search again but without ratings threshold
-            m1 = findNearestConstrained(movieIds, targetClusterId, Float.NEGATIVE_INFINITY, space, movieLookup, userdata);
+            m1 = findNearestConstrained(movieIds, targetClusterId, Float.NEGATIVE_INFINITY, distances, movieLookup, userdata);
         }
 
         if (m1 == null) {
-            LOG.error("Could not find any starting point in the user data");
-            System.exit(1);
+            LOG.error("No starting point in user data. Target mId {}, minRating {}", targetMovieId, minRating);
             throw new IllegalStateException("Could not find any suitable starting point");
         } else {
-            Movie m = movieLookup.getMovie(m1.movieId);
-            LOG.info("Optimal starting point is {} (C{}), rating: {}, distance: {}", m.getTitle(),
-                    m.getClusterId(), String.format("%.1f", m1.rating), String.format("%.3f", m1.distance));
-            return m;
+            return m1;
         }
     }
 
     // Finds the movie nearest 'targetMovieId' in user sub-space, with a rating of at least 'minRating'
     private Result findNearestConstrained(int[] movieIds, int targetClusterId, float minRating,
-            TasteSpace space, MovieLookup movieLookup, UserData userdata) {
+            DistanceMatrix distances, MovieLookup movieLookup, UserData userdata) {
         int movieId = -1;
         float rating = minRating;
         float distance = Float.POSITIVE_INFINITY;
@@ -203,7 +209,7 @@ public class PathFinder {
             if (r >= rating) {
                 cId = movieLookup.getClusterId(mId);
                 if (cId != targetClusterId) {
-                    d = space.getDistanceById(cId, targetClusterId);
+                    d = distances.getDistanceById(cId, targetClusterId);
                     if (d < distance) {
                         distance = d;
                         movieId = mId;
@@ -216,9 +222,9 @@ public class PathFinder {
     }
 
 
-    private Result[] findNearestRated(int movieId, UserData userdata, TasteSpace scaledSpace, int nNearest) {
+    private Result[] findNearestRated(int movieId, UserData userdata, DistanceMatrix distances, int kNearest) {
         PriorityQueue<Result> queue = new ObjectHeapPriorityQueue<>(
-                nNearest, DISTANCE_COMPARATOR);
+                kNearest, DISTANCE_COMPARATOR);
 
         int clusterId = movieLookup.getClusterId(movieId);
         int[] movieIds = userdata.getMovieIds();
@@ -230,9 +236,9 @@ public class PathFinder {
         for (int i = 0; i < movieIds.length; i++) {
             mId = movieIds[i];
             cId = movieLookup.getClusterId(mId);
-            d = scaledSpace.getDistanceById(clusterId, cId);
+            d = distances.getDistanceById(clusterId, cId);
             r = userdata.getRating(mId);
-            if (i < nNearest) {
+            if (i < kNearest) {
                 queue.enqueue(new Result(mId, r, d));
             } else if (d < queue.first().distance) {
                 queue.dequeue();
@@ -248,31 +254,29 @@ public class PathFinder {
         return results;
     }
 
-    private ClusterPath findPath(int movie1, int movie2, int maxJumps, TasteSpace space, MovieLookup movieLookup) {
-        int cIdx1 = space.getClusterIndex(movieLookup.getClusterId(movie1));
-        int cIdx2 = space.getClusterIndex(movieLookup.getClusterId(movie2));
-        float clusterDist = space.getDistance(cIdx1, cIdx2);
+    private ClusterPath findClusterPath(int clusterIndex1, int clusterIndex2, int maxJumps, DistanceMatrix distances) {
+        float clusterDist = distances.getDistance(clusterIndex1, clusterIndex2);
         int jumps = maxJumps;
         ClusterPath path = null;
         // Gradually lower 'maxJumps' until a path can be found
         while ((path == null || Double.isInfinite(path.distance)) && jumps > 0) {
             double maxDist = (clusterDist / (double) jumps) * 1.5d;
-            path = findPathRecursive(space, cIdx1, cIdx2, jumps, maxDist);
+            path = findPathRecursive(distances, clusterIndex1, clusterIndex2, jumps, maxDist);
             jumps--;
         }
         if (path == null || jumps < 0) {
             return null;
         }
-        IntList complete = IntList.of(cIdx1);
+        IntList complete = IntList.of(clusterIndex1);
         complete.addAll(path.clusterIndexes);
         return new ClusterPath(complete, path.distance);
     }
 
-    private ClusterPath findPathRecursive(TasteSpace space, int cIdx1, int cIdx2, int remaining, double maxDist) {
+    private ClusterPath findPathRecursive(DistanceMatrix distances, int cIdx1, int cIdx2, int remaining, double maxDist) {
         if (remaining == 0 && cIdx1 == cIdx2) {
             return new ClusterPath(IntLists.EMPTY_LIST, 0d);
         } else if (remaining == 1) {
-            float distance = space.getDistance(cIdx1, cIdx2);
+            float distance = distances.getDistance(cIdx1, cIdx2);
             if (distance > maxDist) {
                 return null;
             } else {
@@ -287,9 +291,9 @@ public class PathFinder {
         double d;
         double dUpd;
         ClusterPath next;
-        for (int i = 0; i < space.getNumClusters(); i++) {
-            if (cIdx1 != i && cIdx2 != i && (d = space.getDistance(cIdx1, i)) < maxDist) {
-                next = findPathRecursive(space, i, cIdx2, remaining-1, maxDist);
+        for (int i = 0; i < distances.getNumClusters(); i++) {
+            if (cIdx1 != i && cIdx2 != i && (d = distances.getDistance(cIdx1, i)) < maxDist) {
+                next = findPathRecursive(distances, i, cIdx2, remaining-1, maxDist);
                 if (next != null && (dUpd = d + next.distance) < distance) {
                     path0 = IntList.of(i);
                     path0.addAll(next.clusterIndexes);

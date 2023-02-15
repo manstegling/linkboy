@@ -36,6 +36,10 @@ public class UserData {
         return movieIds;
     }
 
+    public int[] getClusterIds() {
+        return clusterIds;
+    }
+
     public int getNumPoints() {
         return movieIds.length;
     }

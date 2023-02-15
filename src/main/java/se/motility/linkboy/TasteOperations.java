@@ -11,6 +11,7 @@ import java.util.Comparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.motility.linkboy.model.DimensionStat;
+import se.motility.linkboy.model.DistanceMatrix;
 import se.motility.linkboy.model.TasteSpace;
 import se.motility.linkboy.model.UserData;
 
@@ -24,7 +25,7 @@ public class TasteOperations {
             .comparingDouble(DimensionStat::getExplainedEntropy)
             .reversed();
 
-    public static TasteSpace scaleToUser(TasteSpace space, UserData userdata, int rank, DimensionAnalyser analyser) {
+    public static DistanceMatrix scaleToUser(TasteSpace space, UserData userdata, int rank, DimensionAnalyser analyser) {
         DimensionStat[] stats = analyser.analyse(userdata);
         Arrays.sort(stats, COMPARATOR);
 
@@ -44,10 +45,7 @@ public class TasteOperations {
         float[][] localColSpace = VectorMath.transpose(localSpace.getCoordinates());
         VectorMath.byIndexedCol(userCoordsRaw, normalizedCols, (i,x) -> normalize(x, localColSpace[i], explained[i]));
 
-        TasteSpace scaledSpace = new TasteSpace(subspace.getClusterIds(), VectorMath.transpose(normalizedCols));
-        scaledSpace.computeDistances();
-
-        return scaledSpace;
+        return DistanceMatrix.compute(subspace.getClusterIds(), VectorMath.transpose(normalizedCols));
     }
 
     // Scale global set so that local subset has a variance of 'scale'
