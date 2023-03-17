@@ -68,7 +68,7 @@ public class Server {
 
     public Prediction predict(int movieId) {
         initPathFinder();
-        return finder.predict(movieId);
+        return finder.predict(movieId, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
     }
 
     /**
@@ -101,7 +101,7 @@ public class Server {
                 LOG.error("Could not read default user ratings at '{}'", DEFAULT_USER_FILE);
                 throw new IllegalStateException("Could not read default user ratings at " + DEFAULT_USER_FILE);
             }
-            finder = new PathFinder(movieLookup, tasteSpace, defaultUserData, USER_DIMENSIONS);
+            finder = new PathFinder(movieLookup, tasteSpace, defaultUserData, USER_DIMENSIONS, DimensionAnalyser.MIDPOINT_FUNCTION);
         }
     }
 

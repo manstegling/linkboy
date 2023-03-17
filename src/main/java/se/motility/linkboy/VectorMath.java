@@ -108,11 +108,7 @@ public class VectorMath {
      * @return mean value of the provided vector
      */
     public static double mean(float[] x) {
-        double res = 0d;
-        for (double xi : x) {
-            res += xi;
-        }
-        return res / x.length;
+        return sum(x) / x.length;
     }
 
     /**

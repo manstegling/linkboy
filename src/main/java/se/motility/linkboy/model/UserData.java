@@ -53,6 +53,10 @@ public class UserData {
         return Float.NaN;
     }
 
+    public float[] getRatings() {
+        return ratings;
+    }
+
     public int getDimensions() {
         return space.getDimensions();
     }

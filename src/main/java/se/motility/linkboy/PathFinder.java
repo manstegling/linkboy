@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 
 import it.unimi.dsi.fastutil.PriorityQueue;
@@ -48,22 +49,22 @@ public class PathFinder {
     private final DistanceMatrix scaledDefaultDistances;
     private final int userDims;
 
-    public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData, int userDims) {
+    public enum PredictionKernel {
+        INVERSE_PROPORTIONAL(x -> x > 0.05d ? 1/ x : 20d),
+        GAUSSIAN(x -> Math.exp(-x*x*0.5)); //sigma=1 works well with my dataset
+        final DoubleUnaryOperator weightFn;
+        PredictionKernel(DoubleUnaryOperator weightFn) {
+            this.weightFn = weightFn;
+        }
+    }
+
+    public PathFinder(MovieLookup movieLookup, TasteSpace tasteSpace, UserData defaultUserData, int userDims, DimensionAnalyser analyser) {
         this.movieLookup = movieLookup;
         this.tasteSpace = tasteSpace;
         this.defaultUserData = defaultUserData;
         this.userDims = userDims;
-        this.scaledDefaultDistances = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims, DimensionAnalyser.INVERSE_FUNCTION);
+        this.scaledDefaultDistances = TasteOperations.scaleToUser(tasteSpace, defaultUserData, userDims, analyser);
     }
-
-//    public Movie findNearest(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
-//        UserData userData = loadUserData(userDataSupplier);
-//        DistanceMatrix scaledDistances = userDataSupplier != null
-//                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
-//                : scaledDefaultDistances;
-//        // TODO: we need another version of this in which we find nearest _global movie not in user dataset_
-//        return null;
-//    }
 
     public MoviePath find(int movieId1, int movieId2, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
         if (!movieLookup.contains(movieId2)) {
@@ -86,28 +87,28 @@ public class PathFinder {
         return findMoviePath(movieId1, movieId2, scaledDistances);
     }
 
-    public Prediction predict(int movieId) {
+    public Prediction predict(int movieId, PredictionKernel kernel) {
         Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultDistances, nNearest);
-        Prediction.Component[] components = preparePrediction(nearest);
+        Prediction.Component[] components = preparePrediction(nearest, kernel.weightFn);
         float predictedRating = computedWeightedAvg(components);
         return new Prediction(movieLookup.getMovie(movieId), predictedRating, components);
     }
 
-    private Prediction.Component[] preparePrediction(Result[] results) {
-        double[] factors = new double[results.length];
+    private Prediction.Component[] preparePrediction(Result[] results, DoubleUnaryOperator weightFn) {
+        double[] weights = new double[results.length];
         float[] ratings = new float[results.length];
+        double weightSum = 0d;
         Result result;
-        double factor;
-        double factorSum = 0d;
+        double weight;
         for (int i = 0; i < results.length; i++) {
             result = results[i];
-            factor = result.distance > 0.05d ? 1/ result.distance : 20d; // cap at factor 20
-            factors[i] = factor;
-            factorSum += factor;
+            weight = weightFn.applyAsDouble(result.distance);
+            weights[i] = weight;
+            weightSum += weight;
             ratings[i] = result.rating;
         }
 
-        if (factorSum == 0d) {
+        if (weightSum == 0d) {
             LOG.warn("Cannot computed weighted avg for {}", Arrays.toString(results));
             throw new IllegalArgumentException("Cannot compute weighted avg for " + Arrays.toString(results));
         }
@@ -116,7 +117,7 @@ public class PathFinder {
         Prediction.Component[] components = new Prediction.Component[results.length];
         for (int i = 0; i < results.length; i++) {
             result = results[i];
-            proportion = factors[i] / factorSum;
+            proportion = weights[i] / weightSum;
             components[i] = new Prediction.Component(result.movieId, movieLookup.getMovie(result.movieId).getTitle(),
                     ratings[i], result.distance, proportion);
         }
