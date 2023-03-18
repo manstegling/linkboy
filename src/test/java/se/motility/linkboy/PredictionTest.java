@@ -23,84 +23,97 @@ public class PredictionTest {
     private static UserData test;
 
     @Test
-    public void predictionError2Midpoint() throws Exception {
-        float mse = predictionError(2, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.5673, mse, DELTA);
+    public void predictionError2Midpoint() {
+        Result result = predictionError(2, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5854, result.l1e, DELTA);
+        assertEquals(0.5802, result.mse, DELTA);
     }
 
     @Test
-    public void predictionError7Midpoint() throws Exception {
-        float mse = predictionError(7, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.5166, mse, DELTA);
+    public void predictionError7Midpoint() {
+        Result result = predictionError(7, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5288, result.l1e, DELTA);
+        assertEquals(0.5205, result.mse, DELTA);
     }
 
     @Test
-    public void predictionError10Midpoint() throws Exception {
-        float mse = predictionError(10, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.4475, mse, DELTA);
-    }
-
-
-    @Test
-    public void predictionError12Midpoint() throws Exception {
-        float mse = predictionError(12, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.4380, mse, DELTA);
-    }
-
-    @Test
-    public void predictionError14Midpoint() throws Exception {
-        float mse = predictionError(14, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.4867, mse, DELTA);
+    public void predictionError10Midpoint() {
+        Result result = predictionError(10, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.4975, result.l1e, DELTA);
+        assertEquals(0.4380, result.mse, DELTA);
     }
 
 
     @Test
-    public void predictionError18Midpoint() throws Exception {
-        float mse = predictionError(18, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.4997, mse, DELTA);
+    public void predictionError12Midpoint() {
+        Result result = predictionError(12, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.4955, result.l1e, DELTA);
+        assertEquals(0.4263, result.mse, DELTA);
     }
 
     @Test
-    public void predictionError2MidpointGaussian() throws Exception {
-        float mse = predictionError(2, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
-        assertEquals(0.6024, mse, DELTA);
-    }
-
-    @Test
-    public void predictionError10MidpointGaussian() throws Exception {
-        float mse = predictionError(10, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
-        assertEquals(0.4713, mse, DELTA);
-    }
-
-    @Test
-    public void predictionError12MidpointGaussian() throws Exception {
-        float mse = predictionError(12, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
-        assertEquals(0.4569, mse, DELTA);
-    }
-
-    @Test
-    public void predictionError14MidpointGaussian() throws Exception {
-        float mse = predictionError(14, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
-        assertEquals(0.5162, mse, DELTA);
+    public void predictionError14Midpoint() {
+        Result result = predictionError(14, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5156, result.l1e, DELTA);
+        assertEquals(0.4816, result.mse, DELTA);
     }
 
 
     @Test
-    public void predictionError2Inverse() throws Exception {
-        float mse = predictionError(2, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.5686, mse, DELTA);
+    public void predictionError18Midpoint() {
+        Result result = predictionError(18, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5134, result.l1e, DELTA);
+        assertEquals(0.4951, result.mse, DELTA);
     }
 
     @Test
-    public void predictionError7Inverse() throws Exception {
-        float mse = predictionError(7, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.5043, mse, DELTA);
+    public void predictionError2MidpointGaussian() {
+        Result result = predictionError(2, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
+        assertEquals(0.6195, result.l1e, DELTA);
+        assertEquals(0.6263, result.mse, DELTA);
     }
 
     @Test
-    public void predictionError12Inverse() throws Exception {
-        float mse = predictionError(12, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
-        assertEquals(0.4855, mse, DELTA);
+    public void predictionError10MidpointGaussian() {
+        Result result = predictionError(10, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
+        assertEquals(0.5087, result.l1e, DELTA);
+        assertEquals(0.4586, result.mse, DELTA);
+    }
+
+    @Test
+    public void predictionError12MidpointGaussian() {
+        Result result = predictionError(12, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
+        assertEquals(0.5014, result.l1e, DELTA);
+        assertEquals(0.4398, result.mse, DELTA);
+    }
+
+    @Test
+    public void predictionError14MidpointGaussian() {
+        Result result = predictionError(14, DimensionAnalyser.MIDPOINT_FUNCTION, PathFinder.PredictionKernel.GAUSSIAN);
+        assertEquals(0.5326, result.l1e, DELTA);
+        assertEquals(0.5064, result.mse, DELTA);
+    }
+
+
+    @Test
+    public void predictionError2Inverse() {
+        Result result = predictionError(2, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5841, result.l1e, DELTA);
+        assertEquals(0.5825, result.mse, DELTA);
+    }
+
+    @Test
+    public void predictionError7Inverse() {
+        Result result = predictionError(7, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5281, result.l1e, DELTA);
+        assertEquals(0.5077, result.mse, DELTA);
+    }
+
+    @Test
+    public void predictionError12Inverse() {
+        Result result = predictionError(12, DimensionAnalyser.INVERSE_FUNCTION, PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
+        assertEquals(0.5114, result.l1e, DELTA);
+        assertEquals(0.4858, result.mse, DELTA);
     }
 
     // Baseline, always predicting mean rating from training set
@@ -108,8 +121,9 @@ public class PredictionTest {
     public void predictionErrorBaseline() {
         float[] trainingRatings = training.getRatings();
         float mean = VectorMath.sum(trainingRatings) / trainingRatings.length;
-        float mse = predictionError(mId -> new Prediction(null, mean,null), "mean rating", "0");
-        assertEquals(0.8765, mse, DELTA);
+        Result result = predictionError(mId -> new Prediction(null, mean,null), "mean rating", "0");
+        assertEquals(0.8765, result.mse, DELTA);
+        assertEquals(0.8152, result.l1e, DELTA);
     }
 
     @BeforeClass
@@ -124,13 +138,13 @@ public class PredictionTest {
         test = split.test;
     }
 
-    private float predictionError(int dimensions, DimensionAnalyser analyser, PathFinder.PredictionKernel kernel) {
+    private Result predictionError(int dimensions, DimensionAnalyser analyser, PathFinder.PredictionKernel kernel) {
         PathFinder finder = new PathFinder(movieLookup, tasteSpace, training, dimensions, analyser);
         IntFunction<Prediction> predictor = mId -> finder.predict(mId, kernel);
         return predictionError(predictor, analyser.getName(), String.valueOf(dimensions));
     }
 
-    private float predictionError(IntFunction<Prediction> predictor, String analyserName, String dims) {
+    private Result predictionError(IntFunction<Prediction> predictor, String analyserName, String dims) {
         int[] testMovieIds = test.getMovieIds();
         float[] ratings = test.getRatings();
         float[] sse = new float[testMovieIds.length];
@@ -147,7 +161,7 @@ public class PredictionTest {
                            ", Training: " + training.getNumPoints() + ", Test: " +
                            test.getNumPoints() + ", MSE: " + mse + ", MSD:" + Math.sqrt(mse) +
                            ", L1: " + l1e);
-        return mse;
+        return new Result(l1e, mse);
     }
 
 
@@ -190,6 +204,13 @@ public class PredictionTest {
         }
     }
 
-
+    private static class Result {
+        final float l1e; //L1 norm
+        final float mse; //L2 norm (squared error)
+        public Result(float l1e, float mse) {
+            this.l1e = l1e;
+            this.mse = mse;
+        }
+    }
 
 }

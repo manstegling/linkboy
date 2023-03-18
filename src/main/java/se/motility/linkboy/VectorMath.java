@@ -130,6 +130,24 @@ public class VectorMath {
     }
 
     /**
+     * Calculates the sum of all values in the provided vector.
+     * Using Kahan's summation algorithm for high numerical stability.
+     * @param x of values to be summed
+     * @return sum of all values
+     */
+    public static double sum(double[] x) {
+        double sum = 0d;
+        double c = 0d;
+        for (int i = 0; i < x.length; i++) {
+            double y = x[i] - c;
+            double t = sum + y;
+            c = (t - sum) - y;
+            sum = t;
+        }
+        return sum;
+    }
+
+    /**
      * Scale and translate vector by scalars {@code a} and {@code b}, respectively.
      * @param x vector
      * @param a scale factor

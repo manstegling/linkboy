@@ -9,7 +9,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 
@@ -37,8 +39,11 @@ public class PathFinder {
     private static final Logger LOG = LoggerFactory.getLogger(PathFinder.class);
     private static final Comparator<Result> DISTANCE_COMPARATOR = Comparator.comparingDouble(Result::getDistance)
                                                                             .reversed();
+    private static final Comparator<ClusterResult> C_DISTANCE_COMPARATOR = Comparator.comparingDouble(ClusterResult::getDistance)
+                                                                            .reversed();
 
     // Hyper-parameters TODO make configurable
+    private final double expansion = 1.15d; // 15% expansion of range
     private final float threshold = 4.5f;
     private final int maxJumps = 5;
     private final int nNearest = 10;
@@ -73,7 +78,7 @@ public class PathFinder {
         }
         UserData userData = loadUserData(userDataSupplier);
         DistanceMatrix scaledDistances = userDataSupplier != null
-                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.INVERSE_FUNCTION)
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.MIDPOINT_FUNCTION)
                 : scaledDefaultDistances;
 
         if (movieId1 == 0) {
@@ -88,27 +93,37 @@ public class PathFinder {
     }
 
     public Prediction predict(int movieId, PredictionKernel kernel) {
-        Result[] nearest = findNearestRated(movieId, defaultUserData, scaledDefaultDistances, nNearest);
+        Movie movie = movieLookup.getMovie(movieId);
+        ClusterPrediction p = predictCluster(movie.getClusterId(), kernel);
+        return new Prediction(movie, p.predictedRating, p.components);
+    }
+
+    private ClusterPrediction predictCluster(int clusterId, PredictionKernel kernel) {
+        Result[] nearest = findNearestRated(clusterId, defaultUserData, scaledDefaultDistances, nNearest);
         Prediction.Component[] components = preparePrediction(nearest, kernel.weightFn);
         float predictedRating = computedWeightedAvg(components);
-        return new Prediction(movieLookup.getMovie(movieId), predictedRating, components);
+        double meanRating = VectorMath.mean(defaultUserData.getRatings());
+        // Expand range to account for kNN prediction causing prediction to be biased towards mean
+        float scaledPredictedRating = (float) ((predictedRating - meanRating) * expansion + meanRating);
+        scaledPredictedRating = Math.max(0f, Math.min(5f, scaledPredictedRating)); // Prediction in [0,5]
+        return new ClusterPrediction(clusterId, scaledPredictedRating, components);
     }
 
     private Prediction.Component[] preparePrediction(Result[] results, DoubleUnaryOperator weightFn) {
         double[] weights = new double[results.length];
         float[] ratings = new float[results.length];
-        double weightSum = 0d;
         Result result;
         double weight;
         for (int i = 0; i < results.length; i++) {
             result = results[i];
             weight = weightFn.applyAsDouble(result.distance);
             weights[i] = weight;
-            weightSum += weight;
             ratings[i] = result.rating;
         }
 
-        if (weightSum == 0d) {
+        double weightSum = VectorMath.sum(weights);
+
+        if (weightSum <= 0d) {
             LOG.warn("Cannot computed weighted avg for {}", Arrays.toString(results));
             throw new IllegalArgumentException("Cannot compute weighted avg for " + Arrays.toString(results));
         }
@@ -125,11 +140,11 @@ public class PathFinder {
     }
 
     private float computedWeightedAvg(Prediction.Component[] components) {
-        float weightedAvg = 0f;
-        for (Prediction.Component s : components) {
-            weightedAvg += s.getProportion() * s.getUserRating();
+        double[] normalizedWeights = new double[components.length];
+        for (int i = 0; i < components.length; i++) {
+            normalizedWeights[i] = components[i].getProportion() * components[i].getUserRating();
         }
-        return weightedAvg;
+        return (float) VectorMath.sum(normalizedWeights);
     }
 
     private UserData loadUserData(IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
@@ -144,6 +159,99 @@ public class PathFinder {
             }
         }
         return defaultUserData;
+    }
+
+    public Prediction[] findRecommended(int movieId, IOExceptionThrowingSupplier<InputStream> userDataSupplier) {
+
+        int kNearest = 5;
+
+        UserData userData = loadUserData(userDataSupplier);
+
+        DistanceMatrix scaledDistances = userDataSupplier != null
+                ? TasteOperations.scaleToUser(tasteSpace, userData, userDims, DimensionAnalyser.MIDPOINT_FUNCTION)
+                : scaledDefaultDistances;
+
+
+        int clusterId = movieLookup.getClusterId(movieId);
+        int index = scaledDistances.getClusterIndex(clusterId);
+        int n = scaledDistances.getNumClusters();
+
+        PriorityQueue<ClusterResult> queue = new ObjectHeapPriorityQueue<>(
+                2*kNearest, C_DISTANCE_COMPARATOR);
+
+        float d;
+        int cId;
+        for (int i = 0; i < n; i++) {
+            if (i != index) {
+                d = scaledDistances.getDistance(index, i);
+                if (i < 2*kNearest) {
+                    cId = tasteSpace.getClusterId(i);
+                    queue.enqueue(new ClusterResult(cId, d));
+                } else if (d < queue.first().distance) {
+                    queue.dequeue();
+                    cId = tasteSpace.getClusterId(i);
+                    queue.enqueue(new ClusterResult(cId, d));
+                }
+            }
+        }
+
+        int[] clusterIds = new int[queue.size() + 1];
+        float[][] coordinates = new float[queue.size() + 1][tasteSpace.getDimensions()];
+
+        int i = 0;
+        // Put the original movie cluster at position 0 to make it look nicer
+        clusterIds[i] = clusterId;
+        coordinates[i] = tasteSpace.getCoordinate(index);
+        i++;
+        ClusterResult result;
+        while (!queue.isEmpty()) {
+            result = queue.dequeue();
+            clusterIds[i] = result.clusterId;
+            coordinates[i] = tasteSpace.getCoordinate(tasteSpace.getClusterIndex(result.clusterId));
+            i++;
+        }
+
+        DistanceMatrix globalDistances = DistanceMatrix.compute(clusterIds, coordinates);
+
+        ClusterPrediction[] highestPredicted = new ClusterPrediction[clusterIds.length - 1];
+        ClusterResult[] highestDistance = new ClusterResult[clusterIds.length - 1];
+        for (int j = 0; j < clusterIds.length - 1; j++) {
+            ClusterPrediction p = predictCluster(clusterIds[j+1], PredictionKernel.INVERSE_PROPORTIONAL);
+            highestPredicted[j] = p;
+            highestDistance[j] = new ClusterResult(clusterIds[j+1], globalDistances.getDistanceById(clusterIds[0], clusterIds[j+1]));
+        }
+        Arrays.sort(highestPredicted, Comparator.comparingDouble(ClusterPrediction::getPredictedRating).reversed());
+        Arrays.sort(highestDistance, Comparator.comparingDouble(ClusterResult::getDistance).reversed());
+
+        i = 0;
+        int j = 0;
+        int k = 0;
+        Set<Integer> clusters = new HashSet<>();
+        while (clusters.size() < kNearest) {
+            if (i % 2 == 0) {
+                clusters.add(highestPredicted[j].clusterId);
+                j++;
+            } else {
+                clusters.add(highestDistance[k].clusterId);
+                k++;
+            }
+            i++;
+        }
+
+        Prediction[] predictions = new Prediction[kNearest];
+        j = 0;
+        for (int id : clusters) {
+            for (i = 0; i < highestPredicted.length; i++) {
+                if (id == highestPredicted[i].clusterId) {
+                    ClusterPrediction p = highestPredicted[i];
+                    predictions[j] = new Prediction(movieLookup.getCluster(id).get(0), p.predictedRating, p.components);
+                    j++;
+                    break;
+                }
+            }
+        }
+
+        return predictions;
     }
 
     private MoviePath findMoviePath(int movieId1, int movieId2, DistanceMatrix distances) {
@@ -223,11 +331,10 @@ public class PathFinder {
     }
 
 
-    private Result[] findNearestRated(int movieId, UserData userdata, DistanceMatrix distances, int kNearest) {
+    private Result[] findNearestRated(int clusterId, UserData userdata, DistanceMatrix distances, int kNearest) {
         PriorityQueue<Result> queue = new ObjectHeapPriorityQueue<>(
                 kNearest, DISTANCE_COMPARATOR);
 
-        int clusterId = movieLookup.getClusterId(movieId);
         int[] movieIds = userdata.getMovieIds();
 
         int cId;
@@ -338,6 +445,33 @@ public class PathFinder {
             sb.append(", distance=").append(distance);
             sb.append('}');
             return sb.toString();
+        }
+    }
+
+    private static class ClusterResult {
+        final int clusterId;
+        final double distance;
+        public ClusterResult(int clusterId, double distance) {
+            this.clusterId = clusterId;
+            this.distance = distance;
+        }
+        public double getDistance() {
+            return distance;
+        }
+    }
+
+    private static class ClusterPrediction {
+        final int clusterId;
+        final float predictedRating;
+        final Prediction.Component[] components;
+        public ClusterPrediction(int clusterId, float predictedRating,
+                Prediction.Component[] components) {
+            this.clusterId = clusterId;
+            this.predictedRating = predictedRating;
+            this.components = components;
+        }
+        public float getPredictedRating() {
+            return predictedRating;
         }
     }
 

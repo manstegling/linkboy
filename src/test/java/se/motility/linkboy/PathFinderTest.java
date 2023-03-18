@@ -4,10 +4,13 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,8 +66,10 @@ public class PathFinderTest {
     @Test
     public void predictionRegressionTest() throws Exception {
         writePredictionOutput(PREDICTION_CURRENT_FILE);
-        try (BufferedReader baseline = new BufferedReader(new FileReader(PREDICTION_BASELINE_FILE));
-             BufferedReader current = new BufferedReader(new FileReader(PREDICTION_CURRENT_FILE))) {
+        try (BufferedReader baseline = new BufferedReader(
+                new InputStreamReader(new FileInputStream(PREDICTION_BASELINE_FILE), StandardCharsets.UTF_8));
+             BufferedReader current = new BufferedReader(
+                     new InputStreamReader(new FileInputStream(PREDICTION_CURRENT_FILE), StandardCharsets.UTF_8))) {
             String base;
             String curr;
             while ((base = baseline.readLine()) != null) {
@@ -241,6 +246,22 @@ public class PathFinderTest {
         }
     }
 
+    @Test
+    public void recommended() throws Exception {
+
+        MovieLookup movieLookup = DataLoader.readMovieMap(() -> open("moviemap.dat.gz", true));
+        TasteSpace tasteSpace = DataLoader.readTasteSpace(() -> open("tastespace.dat.gz", true));
+        UserData userData = DataLoader.readUserDataFull(
+                () -> open("uXXX.csv.gz", true), movieLookup, tasteSpace);
+
+        PathFinder finder = new PathFinder(movieLookup, tasteSpace, userData, 7, DimensionAnalyser.MIDPOINT_FUNCTION);
+
+        Prediction[] predictions = finder.findRecommended(116411, null); //Tangerines
+
+        assertEquals(5, predictions.length);
+
+    }
+
     private void writePredictionOutput(String filename) throws Exception {
         MovieLookup movieLookup = DataLoader.readMovieMap(() -> open("moviemap.dat.gz", true));
         TasteSpace tasteSpace = DataLoader.readTasteSpace(() -> open("tastespace.dat.gz", true));
@@ -248,7 +269,7 @@ public class PathFinderTest {
                 () -> open("uXXX.csv.gz", true), movieLookup, tasteSpace);
 
         PathFinder finder = new PathFinder(movieLookup, tasteSpace, userData, 7, DimensionAnalyser.MIDPOINT_FUNCTION);
-        try (BufferedWriter w = new BufferedWriter(new FileWriter(filename))) {
+        try (BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename), StandardCharsets.UTF_8))) {
             for (int cId = 1; cId <= 1000; cId++) {
                 List<Movie> c1 = movieLookup.getCluster(cId);
                 Prediction prediction = finder.predict(c1.get(0).getId(), PathFinder.PredictionKernel.INVERSE_PROPORTIONAL);
