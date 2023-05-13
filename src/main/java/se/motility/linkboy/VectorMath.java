@@ -57,11 +57,13 @@ public class VectorMath {
      * @param fn {@code R^d -> R} function to apply to each row
      * @return a n-dimensional vector of the results
      */
-    public static <T> void byIndexedRow(float[][] matrix, T[] resultHolder, BiFunction<Integer, float[], T> fn) {
+    public static float[][] byIndexedRow(float[][] matrix, BiFunction<Integer, float[], float[]> fn) {
         final int k = matrix.length;
+        float[][] result = new float[matrix.length][matrix[0].length];
         for (int i = 0; i < k; i++) {
-            resultHolder[i] = fn.apply(i, matrix[i]);
+            result[i] = fn.apply(i, matrix[i]);
         }
+        return result;
     }
 
     /**
@@ -83,9 +85,9 @@ public class VectorMath {
      * @param fn {@code R^n -> R} function to apply to each column
      * @return a d-dimensional vector of the results
      */
-    public static <T> void byIndexedCol(float[][] matrix, T[] resultHolder, BiFunction<Integer, float[], T> fn) {
+    public static float[][] byIndexedCol(float[][] matrix, BiFunction<Integer, float[], float[]> fn) {
         float[][] transpose = transpose(matrix);
-        byIndexedRow(transpose, resultHolder, fn);
+        return byIndexedRow(transpose, fn);
     }
 
     /**

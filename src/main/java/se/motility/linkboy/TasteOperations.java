@@ -41,9 +41,8 @@ public class TasteOperations {
         TasteSpace localSpace = userdata.getSpace().subspace(dims);
 
         float[][] userCoordsRaw = subspace.getCoordinates();
-        float[][] normalizedCols = new float[rank][subspace.getNumClusters()];
         float[][] localColSpace = VectorMath.transpose(localSpace.getCoordinates());
-        VectorMath.byIndexedCol(userCoordsRaw, normalizedCols, (i,x) -> normalize(x, localColSpace[i], explained[i]));
+        float[][] normalizedCols = VectorMath.byIndexedCol(userCoordsRaw, (i,x) -> normalize(x, localColSpace[i], explained[i]));
 
         return DistanceMatrix.compute(subspace.getClusterIds(), VectorMath.transpose(normalizedCols));
     }
