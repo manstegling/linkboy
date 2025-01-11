@@ -55,6 +55,8 @@ public class DataPreprocessor {
     private static final double DEFAULT_BIAS_W = computeWeight(20); // weight for a user with 20 ratings
     // We have ~12% missing pairs (19.9M out of 169.8M)
 
+    private static final String DATA_PATH = "../data/movielens-datasets/20231013-32m/ml-32m/";
+
     private static final Logger LOG = LoggerFactory.getLogger(DataPreprocessor.class);
 
     private final Int2ObjectOpenHashMap<UserContext> userContextMap = new Int2ObjectOpenHashMap<>();
@@ -71,6 +73,8 @@ public class DataPreprocessor {
             if ("default".equalsIgnoreCase(args[0])) {
                 preprocessor = new DataPreprocessor(DEFAULT_BIAS, DEFAULT_BIAS_W);
             }
+            throw new UnsupportedOperationException("do not use, since it forces the whole space" +
+                                                    "towards the mean, introducing unwanted noise");
         } else if (args.length == 2) {
             try {
                 int ratings = Integer.parseInt(args[0]);
@@ -106,7 +110,7 @@ public class DataPreprocessor {
 
         readData(movieIndices);
 
-        File f = new File("../data/dissimilarity-matrix.csv.gz");
+        File f = new File(DATA_PATH + "dissimilarity-matrix.csv.gz");
 
         try (FileOutputStream fos = new FileOutputStream(f);
              GZIPOutputStream gos = new GZIPOutputStream(fos);
@@ -158,7 +162,7 @@ public class DataPreprocessor {
 
     private void readData(IntOpenHashSet movies) {
 
-        try (FileInputStream fis = new FileInputStream("../data/ratings.csv.gz");
+        try (FileInputStream fis = new FileInputStream(DATA_PATH + "ratings.csv.gz");
              GZIPInputStream gis = new GZIPInputStream(fis, 4096);
              InputStreamReader r = new InputStreamReader(gis, StandardCharsets.UTF_8);
              BufferedReader buf = new BufferedReader(r)) {
@@ -193,7 +197,7 @@ public class DataPreprocessor {
     }
 
     private static IntOpenHashSet readMovies() {
-        try (Stream<String> s = Files.lines(Paths.get("../data/movie-counts.csv"))){
+        try (Stream<String> s = Files.lines(Paths.get(DATA_PATH + "movie-counts.csv"))){
             return s.map(str -> str.split(","))
                     .filter(d -> Integer.parseInt(d[0]) >= MIN_COUNT)
                     .mapToInt(d -> Integer.parseInt(d[1]))
@@ -204,7 +208,7 @@ public class DataPreprocessor {
     }
 
     private static Int2DoubleOpenHashMap readUserWeights() {
-        try (Stream<String> s = Files.lines(Paths.get("../data/user-counts.csv"))){
+        try (Stream<String> s = Files.lines(Paths.get(DATA_PATH + "user-counts.csv"))){
             return s.map(str -> str.split(","))
                     .collect(Collectors.toMap(
                             p -> Integer.parseInt(p[1]),
